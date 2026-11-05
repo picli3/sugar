@@ -1,3 +1,7 @@
+import { createMfaRepository } from './mfa/repository.js'
+import { createMfaService } from './mfa/service.js'
+import { registerMfaRoutes } from './mfa/routes.js'
+import { createSecretBox } from './mfa/secrets.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import { asyncRoute, errorHandler } from './shared/http.js'
@@ -52,7 +56,7 @@ import { registerTrashRoutes } from './trash/routes.js'
 
 // Composition only: no DB initialization, listener, timers or background workers.
 // Query, transaction, session secret and GitHub operations belong to the caller.
-export function createApp({ q, transaction, secret, enqueue, syncOne, callProvider, auditWriter, sendVerification, mailService, registrationConfig = loadRegistrationConfig(), recoveryConfig = emailFeatureConfig(process.env, 'ACCOUNT_RECOVERY_ENABLED'), sessionSecure = process.env.SESSION_SECURE === 'true', accessConfig = limitsConfig(), trustedProxies = process.env.TRUSTED_PROXIES || '', origin = process.env.PUBLIC_ORIGIN || '' }) {
+export function createApp({ q, transaction, secret, enqueue, syncOne, callProvider, auditWriter, sendVerification, mailService, mfaKey = process.env.MFA_ENCRYPTION_KEY, mfaEnrollmentEnabled = process.env.MFA_ENROLLMENT_ENABLED === 'true', registrationConfig = loadRegistrationConfig(), recoveryConfig = emailFeatureConfig(process.env, 'ACCOUNT_RECOVERY_ENABLED'), sessionSecure = process.env.SESSION_SECURE === 'true', accessConfig = limitsConfig(), trustedProxies = process.env.TRUSTED_PROXIES || '', origin = process.env.PUBLIC_ORIGIN || '' }) {
   const app = express()
   app.set('trust proxy', proxyList(trustedProxies))
   app.disable('x-powered-by')
@@ -61,13 +65,15 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   const controls = createAccessControls({ secret, config: accessConfig })
   app.use('/api', controls.api)
   app.use('/api', securityAudit({ write: auditWriter }))
-  app.post(['/api/login', '/api/me/password', '/api/me/email', '/api/users', '/api/registration/request', '/api/registration/verify', '/api/recovery/request', '/api/recovery/reset', '/api/recovery/confirm-email'], express.json({ limit: '4kb' }))
+  app.post(['/api/login/mfa/recover', '/api/login/mfa', '/api/me/mfa/enroll', '/api/me/mfa/confirm', '/api/me/mfa/recovery-codes', '/api/me/mfa/disable', '/api/login', '/api/me/password', '/api/me/email', '/api/users', '/api/registration/request', '/api/registration/verify', '/api/recovery/request', '/api/recovery/reset', '/api/recovery/confirm-email'], express.json({ limit: '4kb' }))
   app.put('/api/mail', express.json({ limit: '8kb' }))
   app.use(express.json({ limit: '3mb' }))
   app.use(cookieParser())
 
   const userRepository = createUserRepository(q, transaction)
-  const auth = createAuthService({ users: userRepository, sessions: createSessionRepository(q, transaction), secret, runCredential: controls.runCredential })
+  const mfaBox = createSecretBox(mfaKey), mfaRepository = createMfaRepository({ q, transaction, secretBox: mfaBox })
+  const mfa = createMfaService({ repository: mfaRepository, users: userRepository, secretBox: mfaBox, enrollmentEnabled: mfaEnrollmentEnabled, runCredential: controls.runCredential })
+  const auth = createAuthService({ users: userRepository, sessions: createSessionRepository(q, transaction), secret, runCredential: controls.runCredential, mfaChallenges: mfaRepository.challenges })
   const mail = mailService || createMailService({ q })
   const recovery = createRecoveryService({ repository: createRecoveryRepository(q, transaction), config: recoveryConfig, mail, runCredential: controls.runCredential })
   const imageStorage = createImageStorage({ q, transaction })
@@ -92,7 +98,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   }))
   registerImageContentRoute(app, images, auth)
   registerPublicProjectRoutes(app, projects)
-  registerAuthRoutes(app, { auth, sessionSecure, loginGate: controls.login })
+  registerAuthRoutes(app, { auth, sessionSecure, loginGate: controls.login, mfaGate: controls.mfa })
   registerRegistrationRoutes(app, {
     registration: createRegistrationService({ repository: createRegistrationRepository(q, transaction), config: registrationConfig, sendVerification: sendVerification || mail.sendVerification, runCredential: controls.runCredential }),
     gate: controls.registration,
@@ -102,6 +108,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
 
   app.post('/api/me/password', controls.credentials)
   app.post('/api/users', controls.credentials)
+  registerMfaRoutes(app, { mfa, gate: controls.credentials })
   registerSessionRoutes(app, auth)
   registerAccountEmailRoutes(app, { recovery, gate: [controls.credentials, controls.emailChange] })
   registerMailRoutes(app, { mail, gate: controls.credentials })

@@ -75,6 +75,11 @@ export function createAccessControls({ secret, config = limitsConfig(), clock = 
         if (res.statusCode === 401) { item.failures++; if (item.failures >= 3) item.blockedUntil = Math.min(item.expires, clock() + Math.min(60000, 1000 * 2 ** Math.min(6, item.failures - 3))) }
       })
     }),
+    mfa: middleware(req => {
+      spend('mfa:global', config.loginGlobal, minute)
+      spend('mfa:ip:' + digest(clientNetwork(req.ip)), config.loginIp, minute)
+      if (typeof req.body?.challenge === 'string' && /^[A-Za-z0-9_-]{43}$/.test(req.body.challenge)) spend('mfa:challenge:' + digest(req.body.challenge), 10, accountWindow)
+    }),
     credentials: middleware(req => { spend('credentials:' + digest(req.user.id), config.credentials, accountWindow) }),
     registration: middleware(req => {
       const verify = req.path.toLowerCase().replace(/\/$/, '').endsWith('/verify')

@@ -6,10 +6,10 @@ const challengeDigest = token => crypto.createHash('sha256').update('sugar:mfa:l
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
 const unwrap = result => { if (result.status) error(result.status, result.message); return result.value }
 
-// Internal repository foundation, not exposed by HTTP yet. The caller must have
+// Only the authentication service calls this repository. The caller must have
 // checked the password; the expected hash is rechecked under the account lock.
 export function createMfaChallenges({ transaction, secretBox }) {
-  return {
+  const repository = {
     async issue(userId, expectedHash) {
       return unwrap(await transaction(async tx => {
         const user = (await tx('SELECT id,active,password_hash,auth_version FROM users WHERE id=$1 FOR UPDATE', [userId])).rows[0]
@@ -48,6 +48,22 @@ export function createMfaChallenges({ transaction, secretBox }) {
         const { active, ...identity } = user
         return { value: await onVerified(tx, identity) }
       }))
+    },
+  }
+  return { ...repository,
+    // Explicit lost-authenticator flow: a password-verified, unexpired login
+    // challenge plus ONE unused recovery code can reset the factor. Requiring a
+    // second code after login would lock someone using their last backup out.
+    async recover(proof, onRecovered) {
+      if (typeof onRecovered !== 'function') throw TypeError('MFA recovery callback required')
+      return repository.consume({ ...proof, recovery: true }, async (tx, user) => {
+        await tx(`UPDATE mfa_credentials SET enabled=false,secret_box=NULL,last_step=-1,recovery_hashes='{}',
+          pending_box=NULL,pending_id=NULL,pending_expires_at=NULL,pending_auth_version=NULL,
+          challenge_hash=NULL,challenge_expires_at=NULL,challenge_auth_version=NULL,failures=0,failures_since=clock_timestamp() WHERE user_id=$1`, [user.id])
+        const version = (await tx('UPDATE users SET auth_version=auth_version+1 WHERE id=$1 RETURNING auth_version', [user.id])).rows[0].auth_version
+        await tx('UPDATE user_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [user.id])
+        return onRecovered(tx, { ...user, auth_version: version })
+      })
     },
   }
 }

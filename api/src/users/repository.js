@@ -10,6 +10,7 @@ export function createUserRepository(query, transaction) {
     async preferences(id, language, theme) {
       return (await query('UPDATE users SET language=COALESCE($2,language),theme=COALESCE($3,theme) WHERE id=$1 RETURNING id,email,role,language,theme', [id, language, theme])).rows[0]
     },
+    async activePasswordHash(id) { return (await query('SELECT password_hash FROM users WHERE id=$1 AND active=true', [id])).rows[0]?.password_hash || null },
     async passwordHash(id) { return (await query('SELECT password_hash FROM users WHERE id=$1', [id])).rows[0].password_hash },
     async password(id, hash, expectedHash) {
       return transaction(async tx => {

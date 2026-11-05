@@ -3,6 +3,9 @@ import { reportFailure } from '../shared/logging.js'
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const identity = value => typeof value === 'string' && new RegExp(`^${uuid}$`).test(value) ? value : null
 const rules = [
+  ['POST', '/login/mfa/recover', 'auth.mfa_recover'], ['POST', '/login/mfa', 'auth.mfa_verify'],
+  ['POST', '/me/mfa/enroll', 'auth.mfa_enroll'], ['POST', '/me/mfa/confirm', 'auth.mfa_confirm'],
+  ['POST', '/me/mfa/recovery-codes', 'auth.mfa_recovery_regenerate'], ['POST', '/me/mfa/disable', 'auth.mfa_disable'],
   ['POST', '/login', 'auth.login'], ['POST', '/logout', 'auth.logout'],
   ['POST', '/registration/request', 'auth.registration_request'], ['POST', '/registration/verify', 'auth.registration_verify'],
   ['POST', '/recovery/request', 'auth.recovery_request'], ['POST', '/recovery/reset', 'auth.password_reset'],

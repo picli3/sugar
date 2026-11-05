@@ -1,12 +1,18 @@
 import { asyncRoute, noStore } from '../shared/http.js'
 import { sessionLifetime } from './service.js'
 
-export function registerAuthRoutes(app, { auth, sessionSecure, loginGate }) {
-  app.post('/api/login', noStore, loginGate, asyncRoute(async (req, res) => {
-    const result = await auth.login(req.body)
+export function registerAuthRoutes(app, { auth, sessionSecure, loginGate, mfaGate }) {
+  const complete = (req, res, result) => {
     res.locals.auditActor = result.user.id
     res.cookie('session', result.token, { httpOnly: true, sameSite: 'strict', secure: sessionSecure || req.secure, maxAge: sessionLifetime * 1000, path: '/' })
     res.json(result.user)
+  }
+  app.post('/api/login/mfa/recover', noStore, mfaGate, asyncRoute(async (req, res) => complete(req, res, await auth.recoverMfa(req.body))))
+  app.post('/api/login/mfa', noStore, mfaGate, asyncRoute(async (req, res) => complete(req, res, await auth.completeMfa(req.body))))
+  app.post('/api/login', noStore, loginGate, asyncRoute(async (req, res) => {
+    const result = await auth.login(req.body)
+    if (result.mfaRequired) { res.clearCookie('session', { path: '/' }); return res.status(202).json(result) }
+    complete(req, res, result)
   }))
   app.post('/api/logout', noStore, asyncRoute(async (req, res) => {
     await auth.logout(req.cookies.session)

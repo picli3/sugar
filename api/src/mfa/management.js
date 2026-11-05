@@ -5,8 +5,8 @@ import { attemptWindow, matchFactor, recordFailure } from './proofs.js'
 
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
 
-// Self-service only, using a fresh preverified password plus a factor. No HTTP
-// adapter exposes this yet; neither an Admin nor a request flag can reset others.
+// Self-service only, using a fresh preverified password plus a factor. Neither
+// an Admin nor a request flag can target another account through this repository.
 export function createMfaManagement({ transaction, secretBox }) {
   async function change(action, { userId, sessionId, expectedHash, code, recovery = false }) {
     if (!validId(userId) || !validId(sessionId) || typeof recovery !== 'boolean') error(401, 'mfaInvalid')

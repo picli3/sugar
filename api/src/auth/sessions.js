@@ -28,6 +28,14 @@ export function createSessionRepository(query, transaction) {
       await tx('INSERT INTO user_sessions(id,user_id,auth_version,expires_at,mfa_verified) VALUES($1,$2,$3,$4,true)', [id, userId, user.auth_version, expiresAt])
       return true
     },
+    // Only the atomic lost-authenticator recovery callback may call this, after
+    // consuming the final backup code and resetting the factor/version.
+    async createAfterRecovery(tx, id, userId, authVersion, expiresAt) {
+      const user = (await tx('SELECT auth_version FROM users WHERE id=$1 AND active=true AND auth_version=$2 FOR UPDATE', [userId, authVersion])).rows[0]
+      if (!user || (await tx('SELECT enabled FROM mfa_credentials WHERE user_id=$1', [userId])).rows[0]?.enabled) return false
+      await tx('INSERT INTO user_sessions(id,user_id,auth_version,expires_at) VALUES($1,$2,$3,$4)', [id, userId, user.auth_version, expiresAt])
+      return true
+    },
     async user(id, userId) {
       return (await query(`SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true AND u.auth_version=s.auth_version AND (s.mfa_verified OR NOT EXISTS(SELECT 1 FROM mfa_credentials m WHERE m.user_id=u.id AND m.enabled))`, [id, userId])).rows[0]
     },

@@ -30,6 +30,8 @@ test('HTTP contracts retain public routes, session cookies, authentication and e
     calls.push(sql)
     if (sql.startsWith('SELECT * FROM users')) return { rows: params[0] === user.email ? [{ ...user, password_hash: hash }] : [] }
     if (sql.startsWith('SELECT enabled FROM mfa_credentials')) return { rows: [] }
+    if (sql.startsWith('SELECT id,active,password_hash,auth_version')) return { rows: [{ id: user.id, active: true, password_hash: hash, auth_version: 0 }] }
+    if (sql.startsWith('SELECT * FROM mfa_credentials')) return { rows: [] }
     if (sql.startsWith('SELECT auth_version')) return { rows: [{ auth_version: 0 }] }
     if (sql.startsWith('INSERT INTO user_sessions')) return { rows: [] }
     if (sql.startsWith('UPDATE user_sessions')) return { rowCount: 1, rows: [] }

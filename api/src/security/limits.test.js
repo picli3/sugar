@@ -92,3 +92,18 @@ test('a real bcrypt burst is rejected before additional account queries or passw
   assert.equal(replies.filter(r => r.status === 429).length, 29)
   assert.equal(s.checks(), 1)
 })
+
+test('MFA verification has independent IP/global and per-challenge budgets with bounded expiry', () => {
+  let now = 0
+  const controls = createAccessControls({ secret: 'synthetic-mfa-gate-key', config: { ...config, loginIp: 1000, loginGlobal: 1000 }, clock: () => now })
+  const gate = (ip, challenge) => new Promise(resolve => controls.mfa({ ip, body: { challenge } }, {}, resolve))
+  return (async () => {
+    for (let i = 0; i < 10; i++) assert.equal(await gate('192.0.2.' + i, 'a'.repeat(43)), undefined)
+    assert.equal((await gate('192.0.2.20', 'a'.repeat(43))).status, 429)
+    now += 60_001
+    assert.equal((await gate('192.0.2.21', 'a'.repeat(43))).status, 429)
+    assert.equal(await gate('192.0.2.22', 'b'.repeat(43)), undefined)
+    now += 15 * 60_000
+    assert.equal(await gate('192.0.2.23', 'a'.repeat(43)), undefined)
+  })()
+})

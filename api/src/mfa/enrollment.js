@@ -7,7 +7,7 @@ import { lockCurrentAccount, validId } from './accounts.js'
 
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
 const unwrap = result => { if (result.status) error(result.status, result.message); return result.value }
-// Internal enrollment foundation; no HTTP adapter exposes these operations yet.
+// Only the authenticated service may pass preverified password material here.
 export function createMfaEnrollment({ transaction, secretBox }) {
   return {
     async begin({ userId, sessionId, expectedHash }) {
