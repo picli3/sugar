@@ -1,34 +1,45 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { usePagedList } from './pagination'
 import type { Diagram } from './types'
 import { aiApi, aiMessages, stableSnapshot, type Analysis } from './ai'
 const props = defineProps<{ projectId: string; revision: number; snapshot: Diagram; yamlDirty: boolean; editable: boolean; language: 'es' | 'en' }>()
 const emit = defineEmits<{ select: [id: string] }>()
 const t = (key: string) => (aiMessages[props.language] as Record<string,string>)[key] || key
-const focus = ref(''), busy = ref(false), loading = ref(false), error = ref(''), available = ref(false), ready = ref(false)
+const focus = ref(''), busy = ref(false), detailLoading = ref(false), error = ref(''), available = ref(false), ready = ref(false)
 const budget = ref<any>(null)
 const remaining = (scope: 'user' | 'platform', kind: 'requests' | 'tokens') => budget.value ? Math.max(0, budget.value.limits[(scope === 'user' ? 'user' : 'global') + (kind === 'requests' ? 'Requests' : 'Tokens')] - budget.value[scope][kind]) : 0
-async function quota() { if (props.editable) budget.value = await aiApi('/ai/usage') }
-const items = ref<Analysis[]>([]), current = ref<Analysis | null>(null), nextOffset = ref<number | null>(null)
+let active = true, selection = 0
+async function quota() { if (props.editable) { const result = await aiApi('/ai/usage'); if (active) budget.value = result } }
+const current = ref<Analysis | null>(null)
+const pages = usePagedList<Analysis>(aiApi, () => '/projects/' + props.projectId + '/analyses/page', item => item.id)
+const { items, cursor, loading } = pages
 const stale = computed(() => current.value?.snapshot && (props.yamlDirty || stableSnapshot(current.value.snapshot) !== stableSnapshot(props.snapshot)))
 const base = '/projects/' + props.projectId + '/analyses'
-function showError(e: unknown) { const code = e instanceof Error ? e.message : 'aiNetworkError'; error.value = t(code) === code && !code.startsWith('ai') ? t('aiNetworkError') : t(code) }
-async function history(append = false) {
-  loading.value = true
-  try { const data = await aiApi(base + '?offset=' + (append ? nextOffset.value || 0 : 0)); items.value = append ? [...items.value, ...data.items] : data.items; nextOffset.value = data.nextOffset }
-  finally { loading.value = false }
+function showError(e: unknown) { let code = e instanceof Error ? e.message : 'aiNetworkError'; if (code.startsWith('Metadata antigua supera 4 MiB')) code = 'aiHistoryTooLarge'; error.value = t(code) === code && !code.startsWith('ai') ? t('aiNetworkError') : t(code) }
+async function refresh() { error.value = ''; try { await Promise.all([pages.first(), quota()]) } catch(e) { if (active) showError(e) } }
+async function select(id: string) {
+  const generation = ++selection
+  error.value = ''; detailLoading.value = true
+  try { const result = await aiApi(base + '/' + id); if (active && generation === selection) current.value = result }
+  catch(e) { if (active && generation === selection) showError(e) }
+  finally { if (active && generation === selection) detailLoading.value = false }
 }
-async function refresh() { error.value = ''; try { await history(); await quota() } catch(e) { showError(e) } }
-async function select(id: string) { error.value = ''; loading.value = true; try { current.value = await aiApi(base + '/' + id) } catch(e) { showError(e) } finally { loading.value = false } }
-onMounted(async () => { try { available.value = (await aiApi('/ai/status')).available; ready.value = true; await quota(); await history() } catch(e) { showError(e) } })
+onMounted(async () => {
+  await Promise.all([refresh(), (async () => {
+    try { const result = await aiApi('/ai/status'); if (active) { available.value = result.available; ready.value = true } }
+    catch(e) { if (active) showError(e) }
+  })()])
+})
+onUnmounted(() => { active = false; selection++; pages.reset() })
 async function execute(action: 'analyze' | 'recommend') {
   if (busy.value || props.yamlDirty || !props.editable) return
   busy.value = true; error.value = ''
   const snapshot = JSON.parse(JSON.stringify(props.snapshot))
-  try { const data = await aiApi(base, 'POST', { snapshot, action, focus: focus.value, language: props.language, baseRevision: props.revision, requestId: crypto.randomUUID() }); current.value = await aiApi(base + '/' + data.id); await history() }
-  catch(e) { showError(e) } finally { try { await quota() } catch {} busy.value = false }
+  try { const data = await aiApi(base, 'POST', { snapshot, action, focus: focus.value, language: props.language, baseRevision: props.revision, requestId: crypto.randomUUID() }); if (active) { await select(data.id); await pages.first() } }
+  catch(e) { if (active) showError(e) } finally { if (active) { try { await quota() } catch {} busy.value = false } }
 }
-async function more() { try { await history(true) } catch(e) { showError(e) } }
+async function more() { error.value = ''; try { await pages.more() } catch(e) { if (active) showError(e) } }
 </script>
 <template>
   <div class="inspector-content ai-panel">
@@ -56,7 +67,8 @@ async function more() { try { await history(true) } catch(e) { showError(e) } }
     </article>
     <div class="section-heading"><h3>{{ t('aiHistory') }}</h3><button class="link-button" :disabled="loading" @click="refresh">{{ t('aiReload') }}</button></div>
     <p v-if="!items.length && !loading" class="hint">{{ t('aiNoHistory') }}</p>
-    <button v-for="item in items" :key="item.id" class="ai-history-item" :class="{ chosen: current?.id === item.id }" :disabled="loading" @click="select(item.id)"><strong>{{ item.action === 'analyze' ? t('aiAnalyze') : t('aiRecommend') }} · v{{ item.base_revision }}</strong><small>{{ new Date(item.created_at).toLocaleString(language) }} · {{ item.author }}</small><span v-if="item.focus">{{ item.focus }}</span></button>
-    <button v-if="nextOffset !== null" class="secondary wide" :disabled="loading" @click="more">{{ t('aiMore') }}</button>
+    <button v-for="item in items" :key="item.id" class="ai-history-item" :class="{ chosen: current?.id === item.id }" :disabled="loading || detailLoading" @click="select(item.id)"><strong>{{ item.action === 'analyze' ? t('aiAnalyze') : t('aiRecommend') }} · v{{ item.base_revision }}</strong><small>{{ new Date(item.created_at).toLocaleString(language) }} · {{ item.author }}</small><span v-if="item.focus">{{ item.focus }}</span></button>
+    <p class="hint" role="status">{{ t('aiHistoryLoaded').replace('{count}', String(items.length)) }}</p>
+    <button v-if="cursor" class="secondary wide" :disabled="loading" @click="more">{{ t('aiMore') }}</button>
   </div>
 </template>

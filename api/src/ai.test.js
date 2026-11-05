@@ -92,7 +92,10 @@ async function fixture(t, provider) {
     }
     if (sql.includes('WHERE author_id=')) return { rows: analyses.filter(a=>a.author_id===args[0] && a.request_id===args[1]) }
     if (sql.includes('AND a.id=')) return { rows: analyses.filter(a=>a.project_id===args[0] && a.id===args[1]) }
-    if (sql.includes('LIMIT 21')) return { rows: analyses.filter(a=>a.project_id===args[0]).slice(args[1],args[1]+21).map(({response,snapshot,...a})=>a) }
+    if (sql.startsWith('WITH metadata_source')) {
+      const rows = analyses.filter(a=>a.project_id===args[0]).slice(args[1],args[1]+21).map(({response,snapshot,...a})=>a)
+      return { rows: [{ items: rows.slice(0,20), more: rows.length > 20, oversized: false }] }
+    }
     throw new Error('unexpected query ' + sql)
   }
   const active = new Set(), pending = new Map()
@@ -137,6 +140,7 @@ test('history pagination and invalid input do not call provider', async t => {
   const first=await f.request(path); assert.equal(first.body.items.length,20); assert.equal(first.body.nextOffset,20)
   assert.equal((await f.request(path+'?offset=20')).body.items.length,2)
   assert.equal((await f.request(path+'?offset=-1')).status,400)
+  for (const query of ['offset=1001','offset=1e3','offset=01','offset=1&offset=2','unknown=1']) assert.equal((await f.request(path+'?'+query)).status,400)
   assert.equal((await f.request(path,{method:'POST',body:{...input(),baseRevision:4}})).status,400)
   assert.equal(f.calls(),0)
 })

@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { initAiQuotas, reservedTokens } from './ai/quotas.js'
 import { noStore } from './shared/http.js'
 import { validateProject, stringify } from './model.js'
+import { analysisFields, createAnalysisHistory } from './ai/history.js'
 
 export const MODELS = ['deepseek-flash', 'deepseek-v4-pro']
 export const fail = (status, code) => { throw Object.assign(new Error(code), { status }) }
@@ -78,7 +79,7 @@ export async function initAiDb(q) {
 export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, quota, callProvider = callDeepSeek }) {
   const route = fn => (req,res,next) => Promise.resolve(fn(req,res)).catch(next)
   const config = async () => (await q("SELECT value FROM settings WHERE key='ai'")).rows[0]?.value || {}
-  const fields = 'a.id,a.project_id,a.author_id,u.email AS author,a.snapshot_hash,a.base_revision,a.action,a.focus,a.language,a.provider,a.model,a.usage,a.created_at'
+  const fields = analysisFields, history = createAnalysisHistory(q)
   app.get('/api/ai/quotas', noStore, route(async (req,res) => { requireAdmin(req); res.json(await quota.config()) }))
   app.put('/api/ai/quotas', noStore, route(async (req,res) => { requireAdmin(req); res.json(await quota.configure(req.body)) }))
   app.get('/api/ai/usage', noStore, route(async (req,res) => res.json(await quota.summary(req.user.id))))
@@ -102,14 +103,15 @@ export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, 
     try { const result = await callProvider(c, messages, { maxTokens: 16 }); await quota.settle(call.id, result.usage); res.json({ ok: true }) }
     catch (e) { await quota.abandon(call.id); throw e }
   }))
-  app.get('/api/projects/:id/analyses', route(async (req,res) => {
+  app.get('/api/projects/:id/analyses/page', noStore, route(async (req,res) => {
     await requireProject(req)
-    const offset = Number(req.query.offset || 0)
-    if (!Number.isSafeInteger(offset) || offset < 0) fail(400, 'aiInvalidRequest')
-    const { rows } = await q(`SELECT ${fields} FROM project_analyses a JOIN users u ON u.id=a.author_id WHERE a.project_id=$1 ORDER BY a.created_at DESC,a.id DESC LIMIT 21 OFFSET $2`, [req.params.id, offset])
-    res.json({ items: rows.slice(0,20), nextOffset: rows.length > 20 ? offset + 20 : null })
+    res.json(await history.page(req.params.id, req.query))
   }))
-  app.get('/api/projects/:id/analyses/:analysisId', route(async (req,res) => {
+  app.get('/api/projects/:id/analyses', noStore, route(async (req,res) => {
+    await requireProject(req)
+    res.json(await history.legacy(req.params.id, req.query))
+  }))
+  app.get('/api/projects/:id/analyses/:analysisId', noStore, route(async (req,res) => {
     await requireProject(req)
     const { rows } = await q(`SELECT ${fields},a.snapshot,a.response FROM project_analyses a JOIN users u ON u.id=a.author_id WHERE a.project_id=$1 AND a.id=$2`, [req.params.id, req.params.analysisId])
     if (!rows[0]) fail(404, 'aiNotFound')
