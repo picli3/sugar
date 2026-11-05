@@ -41,6 +41,7 @@ elif args[0] == 'compose':
         else: output = 'db' if state['has_db'] and not state.get('stopped') else ''
     elif 'pull' in args: code = int(state['fail'] == 'pull')
     elif 'exec' in args: output = 'synthetic-pg-dump'
+    elif 'stop' in args: code = int(state['fail'] == 'stop')
     elif 'run' in args: code = int(state['fail'] == 'migration')
     elif 'up' in args:
         is_new = os.environ.get('DATABASE_IMAGE') == state['local_ids']['database']

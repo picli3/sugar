@@ -19,7 +19,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     project_settings_history: 'before jsonb,after jsonb',
     project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
     ai_calls: 'payload_hash text,status text,user_id uuid,storage_bytes bigint NOT NULL DEFAULT 0',
-    sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid',
+    sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid,github_grant_id uuid,github_owner_id uuid,github_connection_id uuid,github_installation_id text,github_repository_id text,github_allow_public boolean',
     block_categories: 'id uuid,slug text,name text,name_key text,icon text',
     settings: 'key text,value jsonb', ai_quota_config: 'value jsonb', image_storage_config: 'value jsonb',
     document_storage_config: 'value jsonb', users: 'email text,password_hash text,role text,display_name text',
@@ -27,7 +27,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
     mfa_credentials: "secret_box jsonb,pending_box jsonb,recovery_hashes text[] NOT NULL DEFAULT '{}',challenge_hash text",
-    github_links: 'id uuid', github_oauth_states: 'id uuid',
+    github_links: 'id uuid', github_oauth_states: 'id uuid', github_project_grants: 'id uuid',
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
   }
   for (const [table, columns] of Object.entries(definitions)) await q(`CREATE TABLE ${table}(${columns})`)
@@ -60,7 +60,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     const current = await storage.configuration()
     return storage.configure({ ...Object.fromEntries(Object.keys(current).filter(key => !['version','usage'].includes(key)).map(key => [key, current[key]])), ...changes, expectedVersion: current.version })
   }
-  await configure({ platformBytes: 1_000_000, aiBytes: 1_000_000, userAiBytes: 12, syncBytes: 1_000_000, projectSyncBytes: 3, categoryBytes: 8 })
+  await configure({ platformBytes: 1_000_000, aiBytes: 1_000_000, userAiBytes: 12, syncBytes: 1_000_000, projectSyncBytes: 1027, categoryBytes: 8 })
   const rollback = await db.connect()
   try {
     await rollback.query('SET ROLE sugar_runtime')
@@ -142,6 +142,12 @@ test('total logical quota serializes writers and rolls back over-budget transact
   races = await Promise.allSettled([scoped('INSERT INTO sync_jobs(yaml,record_id) VALUES($1,$2)', ['abc',project]), scoped('INSERT INTO sync_jobs(yaml,record_id) VALUES($1,$2)', ['def',project])])
   assert.equal(races.filter(result => result.status === 'fulfilled').length, 1)
   assert.equal(races.filter(result => result.status === 'rejected' && result.reason.code === 'PZ001').length, 1)
+  // A GitHub job reserves outcome/capability metadata before a remote commit;
+  // success/error settlement cannot grow storage at a newly closed cap.
+  const syncAdmitted = (await storage.configuration()).usage
+  await configure({ platformBytes: 0, syncBytes: 0, projectSyncBytes: 0 })
+  await scoped("UPDATE sync_jobs SET error='GITHUB_ACCESS_DENIED',commit_sha=$1,github_grant_id=$2 WHERE record_id=$3", ['a'.repeat(40),crypto.randomUUID(),project])
+  assert.deepEqual((await storage.configuration()).usage,syncAdmitted)
   // Connection tests have no payload reservation: reserve status growth upfront.
   const beforeCall = await storage.configuration(), connectionActor = crypto.randomUUID()
   await configure({ platformBytes: Number(beforeCall.usage.total) + 10, aiBytes: Number(beforeCall.usage.ai) + 10, userAiBytes: 1_000_000 })

@@ -6,6 +6,8 @@ import sys
 def validate(config):
     api = config.get('services', {}).get('api', {})
     errors = []
+    if any(name in api.get('environment', {}) for name in ['GITHUB_APP_ID','GITHUB_INSTALLATION_ID','GITHUB_PRIVATE_KEY','GITHUB_PRIVATE_KEY_FILE']):
+        errors.append('API must not receive shared GitHub installation credentials')
     if api.get('user') != '1000:1000':
         errors.append('API must run as UID/GID 1000')
     if api.get('read_only') is not True or api.get('init') is not True:

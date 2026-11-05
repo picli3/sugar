@@ -44,6 +44,3 @@ export async function initGithubLinkDb(q) {
   await q(`CREATE TRIGGER sugar_github_credential_change AFTER UPDATE OF active,role,auth_version ON users FOR EACH ROW EXECUTE FUNCTION sugar_invalidate_github()`)
   await q("INSERT INTO settings(key,value) VALUES('github_user_schema_version','1'::jsonb) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
 }
-export async function githubSchemaReady(q) {
-  return (await q({ text: "SELECT value FROM settings WHERE key='github_user_schema_version'", query_timeout: 1000 })).rows[0]?.value === 1
-}

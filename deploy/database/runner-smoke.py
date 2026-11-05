@@ -48,6 +48,9 @@ for first, stopped in ((False, False), (False, True), (True, False)):
     assert 'DATABASE_IMAGE=' + IDS['database'] in record and 'API_IMAGE=' + IDS['api'] in record
     assert (ROOT / 'release.env').stat().st_mode & 0o777 == 0o600
     commands = state['commands']
+    stop_index = next(i for i,c in enumerate(commands) if 'stop' in c)
+    migrated = next(i for i,c in enumerate(commands) if 'migrate' in c)
+    assert stop_index < migrated and commands[stop_index][-1] == 'api'
     assert any('pull' in call and call[-3:] == ['api', 'web', 'db'] for call in commands)
     if not first and not stopped:
         assert next(i for i, call in enumerate(commands) if 'exec' in call) < next(i for i, call in enumerate(commands) if 'run' in call)
@@ -55,7 +58,7 @@ for first, stopped in ((False, False), (False, True), (True, False)):
         assert not any('exec' in call for call in commands)
 
 for access in ('runtime-v1', ''):
-    for fail in ('pull', 'identity-api', 'identity-web', 'identity-database', 'db', 'migration', 'api', 'health'):
+    for fail in ('stop', 'pull', 'identity-api', 'identity-web', 'identity-database', 'db', 'migration', 'api', 'health'):
         result, state, record, original = scenario(fail, access)
         assert result.returncode != 0 and record == original, 'failure changed the release record'
         assert state['current_db'] == OLD_ID and state['current_app'] == OLD, 'previous image identity not restored'

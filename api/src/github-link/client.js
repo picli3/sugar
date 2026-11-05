@@ -91,7 +91,7 @@ export function createGithubClient({ clientId, clientSecret, origin, request = f
     const branch = await call(`https://api.github.com/repos/${repo.name}/branches/${encodeURIComponent(target.branch)}`, { token, deadline })
     if (branch.status === 404) throw githubError('GITHUB_BRANCH_MISSING', 409)
     if (branch.value?.name !== target.branch) throw githubError('GITHUB_RESPONSE_INVALID')
-    return { ...target, repository: repo.name }
+    return { ...target, repository: repo.name, private: repo.private }
   }
   return {
     async exchange({ code, verifier }) {
@@ -130,6 +130,7 @@ export function createGithubClient({ clientId, clientSecret, origin, request = f
     async writeRevision(token, target, { id, revision, yaml }) {
       if (typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id) || !Number.isInteger(revision) || revision < 1 || revision > 2147483647 || typeof yaml !== 'string' || Buffer.byteLength(yaml) > 2_000_000) throw githubError('GITHUB_TARGET_INVALID', 400)
       const deadline = budgetClock() + timeoutMs, allowed = await authorize(token, target, deadline)
+      if (!allowed.private && allowed.allowPublic !== true) throw githubError('GITHUB_REPOSITORY_PUBLIC', 409)
       const path = `projects/${id}/revision-${revision}.yaml`, url = `https://api.github.com/repos/${allowed.repository}/contents/${path}`
       const existing = await call(url + '?ref=' + encodeURIComponent(allowed.branch), { token, deadline })
       if (existing.status !== 404) {

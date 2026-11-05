@@ -9,7 +9,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@octokit/auth-app": "^7.2.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "diff": "8.0.3",

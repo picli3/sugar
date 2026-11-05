@@ -33,18 +33,23 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
     images: 'name text,mime text,data bytea', projects: 'name text,yaml text', blocks: 'name text',
     project_revisions: 'yaml text,summary text', block_versions: 'yaml text,summary text', project_settings_history: 'before jsonb,after jsonb',
     project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
-    sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid',
+    sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid,github_grant_id uuid,github_owner_id uuid,github_connection_id uuid,github_installation_id text,github_repository_id text,github_allow_public boolean',
     block_categories: 'slug text,name text,name_key text,icon text', ai_quota_config: 'value jsonb',
     users: 'id uuid PRIMARY KEY,email text,password_hash text,role text,display_name text', project_members: 'project_id uuid,user_id uuid,role text',
     user_sessions: 'id uuid,user_id uuid', image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
-    github_links: 'id uuid', github_oauth_states: 'id uuid',
+    github_links: 'id uuid', github_oauth_states: 'id uuid', github_project_grants: 'id uuid',
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
   })) await q(`CREATE TABLE ${table}(${columns})`)
   await ready(false)
   await initMfaDb(q); await initMfaSessionDb(q)
   const migrateTotal = () => initTotalStorage(q, createTransaction(pool))
+  await q("INSERT INTO settings VALUES('github_user_schema_version','2')")
+  await q('CREATE FUNCTION fixture_sync_guard() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RETURN NEW; END$$')
+  await q('CREATE TRIGGER sugar_sync_authorization BEFORE INSERT ON sync_jobs FOR EACH ROW EXECUTE FUNCTION fixture_sync_guard()')
   await migrateTotal(); await ready(true)
+  await q('ALTER TABLE sync_jobs DISABLE TRIGGER sugar_sync_authorization');await ready(false)
+  await q('ALTER TABLE sync_jobs ENABLE TRIGGER sugar_sync_authorization');await ready(true)
   await q('ALTER TABLE user_sessions DISABLE TRIGGER sugar_mfa_session_guard');await ready(false)
   await q('ALTER TABLE user_sessions ENABLE TRIGGER sugar_mfa_session_guard');await ready(true)
   await q('ALTER TABLE user_sessions ALTER COLUMN mfa_verified DROP NOT NULL');await ready(false)
@@ -68,7 +73,7 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
   await q('UPDATE image_storage_config SET value=$1',[JSON.stringify(defaultImageStorage)]);await ready(true)
   await q('ALTER TABLE document_storage_config DROP COLUMN version');await ready(false)
   await q('ALTER TABLE document_storage_config ADD COLUMN version int DEFAULT 1');await ready(true)
-  await q("UPDATE settings SET value='2'");await ready(false)
-  await q("UPDATE settings SET value='1'");await ready(true)
+  await q("UPDATE settings SET value='2' WHERE key='schema_version'");await ready(false)
+  await q("UPDATE settings SET value='1' WHERE key='schema_version'");await ready(true)
   assert.deepEqual((await q('SELECT value FROM image_storage_config')).rows[0].value,defaultImageStorage)
 })

@@ -27,3 +27,8 @@ class PolicyTests(unittest.TestCase):
                 config = copy.deepcopy(self.config())
                 config['services']['api'][name] = value
                 self.assertTrue(validate(config))
+
+    def test_shared_github_credentials_are_rejected(self):
+        config = self.config()
+        config['services']['api'].setdefault('environment', {})['GITHUB_PRIVATE_KEY'] = 'synthetic-unused'
+        self.assertTrue(validate(config))

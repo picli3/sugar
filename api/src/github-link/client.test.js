@@ -98,3 +98,11 @@ test('one monotonic budget covers all catalog pages even if wall clock moves bac
   } })
   await assert.rejects(client.installations(token), { code: 'GITHUB_TIMEOUT' }); assert.ok(calls <= 3)
 })
+
+test('a private target becoming public needs renewed explicit publication consent', async () => {
+  const { client, calls } = fixture({ '/user/installations/7/repositories': () => response({ total_count: 1, repositories: [{ ...repository, private: false }] }) })
+  await assert.rejects(client.writeRevision(token, target, { id, revision: 1, yaml: 'name: confidential' }), { code: 'GITHUB_REPOSITORY_PUBLIC' })
+  assert.equal(calls.some(([url]) => url.includes('/contents/')), false)
+  await client.writeRevision(token, { ...target, allowPublic: true }, { id, revision: 1, yaml: 'name: publication consented' })
+  assert.equal(calls.filter(([, options]) => options.method === 'PUT').length, 1)
+})

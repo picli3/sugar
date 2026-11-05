@@ -1,3 +1,4 @@
+import { createGithubIntegration } from './github-link/integration.js'
 import { createMfaRepository } from './mfa/repository.js'
 import { createMfaService } from './mfa/service.js'
 import { registerMfaRoutes } from './mfa/routes.js'
@@ -79,16 +80,17 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   const auth = createAuthService({ users: userRepository, sessions: createSessionRepository(q, transaction), secret, runCredential: controls.runCredential, mfaChallenges: mfaRepository.challenges })
   const mail = mailService || createMailService({ q })
   const recovery = createRecoveryService({ repository: createRecoveryRepository(q, transaction), config: recoveryConfig, mail, runCredential: controls.runCredential })
+  const github = createGithubIntegration({ q, transaction, runCredential: controls.runCredential })
   const imageStorage = createImageStorage({ q, transaction })
   const documentStorage = createDocumentStorage({ repository: createDocumentStorageRepository(q), transaction })
   const images = createImageService(createImageRepository(q), imageStorage)
   const migrateEmbeddedImages = (yaml, kind, tx, options) => replaceEmbeddedImages(yaml, kind, tx, { ...options, storage: imageStorage })
   const projects = createProjectService({
-    projects: createProjectRepository(q), transaction, enqueue, storage: documentStorage,
+    projects: createProjectRepository(q), transaction, enqueue, syncTargets: github.targets, storage: documentStorage,
     categoryIcons: yaml => projectCategoryIcons(yaml, q), replaceEmbeddedImages: migrateEmbeddedImages, attachImages: images.attach,
   })
   const blocks = createBlockService({ blocks: createBlockRepository(q), transaction, storage: documentStorage, validateCategory, replaceEmbeddedImages: migrateEmbeddedImages, attachImages: images.attach })
-  const sync = createProjectSyncService({ query: q, projects, synchronize: syncOne })
+  const sync = createProjectSyncService({ query: q, projects, targets: github.targets, synchronize: syncOne || (() => github.worker.tick()) })
 
   // Public endpoints must precede the session middleware, just as before.
   app.get('/api/health', (_, res) => res.json({ ok: true }))

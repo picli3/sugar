@@ -9,7 +9,7 @@ export function registerProjectRoutes(app, projects) {
   app.get('/api/projects/page', noStore, asyncRoute(async (req, res) => res.json(await projects.page(req.user, req.query))))
   app.get('/api/projects', noStore, asyncRoute(async (req, res) => res.json(await projects.list(req.user))))
   app.post('/api/projects', asyncRoute(async (req, res) => res.status(201).json(await projects.create(req.user, req.body))))
-  app.patch('/api/projects/:id/settings', asyncRoute(async (req, res) => res.json(await projects.settings(req.params.id, req.user, req.body))))
+  app.patch('/api/projects/:id/settings', asyncRoute(async (req, res) => res.json(await projects.settings(req.params.id, req.user, req.body, req.sessionId))))
   app.get('/api/projects/:id/settings/history', noStore, asyncRoute(async (req, res) => res.json(await projects.settingsHistory(req.params.id, req.user))))
   app.get('/api/projects/:id/settings/history/page', noStore, asyncRoute(async (req, res) => res.json(await projects.settingsHistoryPage(req.params.id, req.user, req.query))))
   app.post('/api/projects/:id/share', asyncRoute(async (req, res) => res.json(await projects.share(req.params.id, req.user))))

@@ -7,7 +7,7 @@ import { normalizeColorLiterals, stringify, validateProject, revisionSummary } f
 import { repositorySettings } from './validation.js'
 import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPageInput, identifierPageInput, identifierPageResult } from '../shared/pagination.js'
 
-export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {} }) {
+export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {}, syncTargets }) {
   const get = async (id, user, options, tx, lock = false) => {
     const project = requireProjectAccess(await projects.find(id, user.id, tx, lock), user, options)
     return person({ ...project, permissions: projectPermissions(project, user) }, user, 'creator')
@@ -82,22 +82,30 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       })
       return { id, revision: 1 }
     },
-    async settings(id, user, input) {
+    async settings(id, user, input, sessionId) {
       const current = await get(id, user, { ownerOnly: true })
       const visibility = input.visibility
       if (!['public', 'private'].includes(visibility)) error(400, 'Visibilidad inválida')
-      const { repository, branch } = repositorySettings(input)
+      let { repository, branch } = repositorySettings(input)
       const expected = Number(input.expectedSettingsVersion)
       if (!Number.isInteger(expected) || expected < 1) error(400, 'Versión de configuración inválida')
+      const authorize = ['sync_installation_id','sync_repository_id','sync_confirm_public'].some(key => Object.hasOwn(input, key))
+      let grant
+      if (authorize) {
+        if (!repository || !syncTargets) error(400, 'GITHUB_INPUT_INVALID')
+        grant = await syncTargets.prepare(current, user, sessionId, input, repository, branch)
+        repository = grant.repository
+      }
       const before = { visibility: current.visibility, sync_repository: current.sync_repository, sync_branch: current.sync_branch }
-      const after = { visibility, sync_repository: repository, sync_branch: branch }
-      if (JSON.stringify(before) !== JSON.stringify(after)) {
-        const changedTarget = repository !== current.sync_repository || branch !== current.sync_branch
+      const after = { visibility, sync_repository: repository, sync_branch: branch, ...(authorize ? { sync_authorized: true } : {}) }
+      if (authorize || JSON.stringify(before) !== JSON.stringify(after)) {
+        const changedTarget = authorize || repository !== current.sync_repository || branch !== current.sync_branch
         const mutate = repository && changedTarget ? action => write(id, action) : transaction
         await mutate(async tx => {
           await get(id, user, { ownerOnly: true }, tx, true)
           const saved = await projects.settings(id, expected, visibility, repository, branch, tx)
           if (!saved) error(409, 'La configuración cambió; recarga antes de guardar')
+          if (changedTarget && syncTargets) await syncTargets.save(tx, id, grant)
           await projects.addSettingsHistory(id, user.id, before, after, tx)
           if (changedTarget) await projects.skipPendingSync(id, tx)
           if (repository && changedTarget) await enqueue('project', id, saved.revision, saved.yaml, tx, { repository, branch })

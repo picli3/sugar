@@ -2,8 +2,10 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import { q, pool } from '/app/src/db.js'
-import { syncOne } from '/app/src/github.js'
+import { q, pool, transaction } from '/app/src/db.js'
+import { syncOne, enqueue } from '/app/src/github.js'
+import { createGithubIntegration } from '/app/src/github-link/integration.js'
+import { createGithubClient } from '/app/src/github-link/client.js'
 import { loadSecretFiles } from '/app/src/config/secrets.js'
 import { verifyRuntime } from '/app/src/database/access.js'
 
@@ -100,21 +102,37 @@ try {
     await request(`/projects/${project.id}/settings`, {
       visibility: 'private', sync_repository: 'synthetic/fixture', sync_branch: 'development', expectedSettingsVersion: 1,
     }, 'PATCH')
-    // Real queue/database path with injected auth and HTTP; no external credentials or network.
-    process.env.GITHUB_APP_ID = 'synthetic-app'
-    process.env.GITHUB_INSTALLATION_ID = 'synthetic-installation'
-    process.env.GITHUB_PRIVATE_KEY = 'synthetic-private-key'
+    // Legacy metadata has no writing capability. Exercise the scoped worker with
+    // a synthetic encrypted account, own installation and an injected HTTP client.
+    assert.equal((await q('SELECT status FROM sync_jobs WHERE record_id=$1', [project.id])).rows[0].status, 'blocked')
+    const githubEnv = { PUBLIC_ORIGIN: 'https://sugar.example.invalid', GITHUB_CLIENT_ID: 'Iv1.synthetic', GITHUB_CLIENT_SECRET: 'synthetic-secret', GITHUB_USER_ENCRYPTION_KEY: '11'.repeat(32) }
+    const token = 'ghu_' + 'a'.repeat(40)
     let writes = 0
-    await syncOne({ authenticate: () => async () => ({ token: 'synthetic-github-token' }), request: async (_url, options) => {
-      if (options.method !== 'PUT') return new Response('{}', { status: 404 })
+    const client = createGithubClient({ request: async (url, options) => {
+      assert.equal(options.headers.Authorization, 'Bearer ' + token)
+      const path = new URL(url).pathname
+      const result = value => new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } })
+      if (path === '/user/installations') return result({total_count:1,installations:[{id:7,account:{id:9,login:'synthetic'},permissions:{contents:'write'},suspended_at:null}]})
+      if (path === '/user/installations/7/repositories') return result({total_count:1,repositories:[{id:8,owner:{id:9},full_name:'synthetic/fixture',private:true,default_branch:'development',permissions:{push:true},archived:false,disabled:false}]})
+      if (path === '/repos/synthetic/fixture/branches/development') return result({name:'development'})
+      assert.match(path, /\/contents\/projects\/[^/]+\/revision-2\.yaml$/)
+      if (options.method !== 'PUT') return new Response(null, { status: 404 })
       writes++
       const body = JSON.parse(options.body)
       assert.equal(body.branch, 'development')
       assert.match(Buffer.from(body.content, 'base64').toString(), /Container fixture updated/)
-      return new Response(JSON.stringify({ commit: { sha: 'a'.repeat(40) } }))
+      return result({ commit: { sha: 'a'.repeat(40) } })
     } })
+    const github = createGithubIntegration({q,transaction,env:githubEnv,client})
+    const owner = (await q("SELECT id,role,auth_version FROM users WHERE email='admin@example.invalid'")).rows[0], linkId = crypto.randomUUID()
+    const accessBox = github.config.box.encrypt({userId:owner.id,linkId,purpose:'access'},token)
+    await q('INSERT INTO github_links(user_id,id,client_id,auth_version,github_user_id,github_login,access_box) VALUES($1,$2,$3,$4,$5,$6,$7)', [owner.id,linkId,githubEnv.GITHUB_CLIENT_ID,owner.auth_version,'111','synthetic-user',accessBox])
+    const sid = (await q('SELECT id FROM user_sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1',[owner.id])).rows[0].id
+    const grant = await github.targets.prepare({created_by:owner.id},owner,sid,{sync_installation_id:'7',sync_repository_id:'8'},'synthetic/fixture','development')
+    await transaction(async tx => { await github.targets.save(tx,project.id,grant); await enqueue('project',project.id,2,JSON.stringify(snapshot),tx,{repository:'synthetic/fixture',branch:'development'}) })
+    await syncOne({ integration: github })
     assert.equal(writes, 1)
-    assert.equal((await q('SELECT status FROM sync_jobs WHERE record_id=$1', [project.id])).rows[0].status, 'synced')
+    assert.equal((await q('SELECT status FROM sync_jobs WHERE record_id=$1 ORDER BY id DESC LIMIT 1', [project.id])).rows[0].status, 'synced')
     console.log(JSON.stringify({ project: project.id, image: image.id, analysis: analysis.id, cookie }))
   } else {
     assert.equal(process.argv[2], 'persist')

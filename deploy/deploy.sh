@@ -136,7 +136,7 @@ record_release() {
   printf 'IMAGE_TAG=%s\nDATABASE_ACCESS=runtime-v1\nDATABASE_IMAGE=%s\nAPI_IMAGE=%s\nWEB_IMAGE=%s\nAPI_CONFIG=%s\nWEB_CONFIG=%s\nDATABASE_CONFIG=%s\n' "$sha" "$verified_database" "$verified_api" "$verified_web" "$expected_api" "$expected_web" "$expected_database" > "$release_file" || return 1
   mv -f "$release_file" release.env
 }
-if ! compose up -d --wait --wait-timeout 180 db || ! compose --profile maintenance run --rm --no-deps migrate || ! compose up -d --wait --wait-timeout 180 || ! curl --fail --silent --retry 6 --retry-delay 2 http://127.0.0.1:18088/api/ready || ! record_release; then
+if ! compose stop -t 30 api || ! compose up -d --wait --wait-timeout 180 db || ! compose --profile maintenance run --rm --no-deps migrate || ! compose up -d --wait --wait-timeout 180 || ! curl --fail --silent --retry 6 --retry-delay 2 http://127.0.0.1:18088/api/ready || ! record_release; then
   if [[ -n "$previous_database" ]]; then export DATABASE_IMAGE="$previous_database"; fi
   if [[ -n "$previous_api" ]]; then export API_IMAGE="$previous_api"; fi
   if [[ -n "$previous_web" ]]; then export WEB_IMAGE="$previous_web"; fi

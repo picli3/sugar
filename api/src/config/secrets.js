@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-const names = ['DATABASE_URL','ADMIN_PASSWORD','JWT_SECRET','AI_ENCRYPTION_KEY','GITHUB_PRIVATE_KEY','RUNTIME_DB_PASSWORD','SMTP_PASSWORD','MAIL_ENCRYPTION_KEY','MFA_ENCRYPTION_KEY','GITHUB_CLIENT_SECRET','GITHUB_USER_ENCRYPTION_KEY']
+const names = ['DATABASE_URL','ADMIN_PASSWORD','JWT_SECRET','AI_ENCRYPTION_KEY','RUNTIME_DB_PASSWORD','SMTP_PASSWORD','MAIL_ENCRYPTION_KEY','MFA_ENCRYPTION_KEY','GITHUB_CLIENT_SECRET','GITHUB_USER_ENCRYPTION_KEY']
 export function configError(name) { return Object.assign(new Error(`Invalid secret configuration: ${name}`), { code: 'SECRET_CONFIG' }) }
 export function loadSecretFiles(env = process.env) {
   for (const name of names) {

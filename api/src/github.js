@@ -1,54 +1,41 @@
-import { createAppAuth } from '@octokit/auth-app'
-import { reportFailure, failureCode } from './shared/logging.js'
-import { q } from './db.js'
-
-let running = false
+import { reportFailure } from './shared/logging.js'
+import { q, transaction } from './db.js'
+let defaults
+async function defaultIntegration() {
+  defaults ||= import('./github-link/integration.js').then(({ createGithubIntegration }) => createGithubIntegration({ q, transaction }))
+  return defaults
+}
 export async function enqueue(kind, id, revision, yaml, query = q, target = null) {
   if (kind !== 'project' || !target?.repository) return
-  await query('INSERT INTO sync_jobs(kind,record_id,revision,yaml,target_repository,target_branch) VALUES($1,$2,$3,$4,$5,$6)', [kind, id, revision, yaml, target?.repository || null, target?.branch || null])
+  await query(`INSERT INTO sync_jobs(kind,record_id,revision,yaml,target_repository,target_branch,status,error,
+    github_grant_id,github_owner_id,github_connection_id,github_installation_id,github_repository_id,github_allow_public)
+    SELECT $1,p.id,$3,$4,$5,$6,CASE WHEN u.id IS NULL THEN 'blocked' ELSE 'pending' END,
+      CASE WHEN u.id IS NULL THEN 'GITHUB_AUTHORIZATION_REQUIRED' ELSE NULL END,g.id,g.owner_id,g.link_id,g.installation_id,g.repository_id,g.allow_public
+    FROM projects p LEFT JOIN github_project_grants g ON g.project_id=p.id AND g.owner_id=p.created_by AND g.repository=$5 AND g.branch=$6
+    LEFT JOIN github_links l ON l.id=g.link_id AND l.user_id=g.owner_id AND l.access_box IS NOT NULL
+    LEFT JOIN users u ON u.id=g.owner_id AND u.active AND u.role IN ('dev','Admin') AND u.auth_version=l.auth_version
+    WHERE p.id=$2 AND p.deleted_at IS NULL`, [kind,id,revision,yaml,target.repository,target.branch || 'main'])
 }
-export async function syncOne({ query = q, authenticate = createAppAuth, request = fetch } = {}) {
-  if (running) return
-  if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_INSTALLATION_ID || !process.env.GITHUB_PRIVATE_KEY) return
-  running = true
-  let job
-  try {
-    const jobs = await query("SELECT j.* FROM sync_jobs j WHERE j.kind='project' AND j.status='pending' AND j.next_attempt_at<=now() AND j.target_repository IS NOT NULL AND NOT EXISTS(SELECT 1 FROM projects p WHERE p.id=j.record_id AND p.deleted_at IS NOT NULL) ORDER BY j.id LIMIT 1")
-    job = jobs.rows[0]
-    if (!job) return
-    const [owner, repo] = job.target_repository.split('/')
-    const auth = authenticate({ appId: process.env.GITHUB_APP_ID, privateKey: process.env.GITHUB_PRIVATE_KEY.replace(/\\n/g, '\n'), installationId: process.env.GITHUB_INSTALLATION_ID })
-    const token = (await auth({ type: 'installation' })).token
-    const path = `projects/${job.record_id}/revision-${job.revision}.yaml`
-    const branch = job.target_branch || 'main'
-    const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}`
-    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }
-    const existing = await request(`${url}?ref=${encodeURIComponent(branch)}`, { headers })
-    let sha
-    if (existing.ok) sha = (await existing.json()).sha
-    else if (existing.status !== 404) throw Object.assign(new Error('GitHub read failed'), { code: `GITHUB_READ_${existing.status}` })
-    const res = await request(url, { method: 'PUT', headers, body: JSON.stringify({ message: `${job.kind} ${job.record_id} revision ${job.revision}`, content: Buffer.from(job.yaml).toString('base64'), branch, ...(sha ? { sha } : {}) }) })
-    if (!res.ok) throw Object.assign(new Error('GitHub write failed'), { code: `GITHUB_WRITE_${res.status}` })
-    const data = await res.json()
-    if (data.commit?.sha != null && (typeof data.commit.sha !== 'string' || Buffer.byteLength(data.commit.sha) > 128)) throw Object.assign(new Error('Invalid GitHub commit metadata'), { code: 'GITHUB_COMMIT_INVALID' })
-    await query("UPDATE sync_jobs SET status='synced', error=NULL, commit_sha=$2 WHERE id=$1", [job.id, data.commit?.sha || null])
-  } catch (e) {
-    if (job) await query("UPDATE sync_jobs SET attempts=attempts+1,error=$2,next_attempt_at=now() + ((LEAST(POWER(2, LEAST(attempts,12)), 3600))::text || ' seconds')::interval WHERE id=$1", [job.id, failureCode(e)])
-    reportFailure('GitHub sync failed', e)
-  } finally { running = false }
-}
+export async function syncOne({ integration } = {}) { return (integration || await defaultIntegration()).worker.tick() }
 export function startSync() { setInterval(() => syncOne().catch(error => reportFailure('GitHub worker failed', error)), 10000).unref() }
-
-// Project-specific queue operations; starting the worker remains a bootstrap decision.
-export function createProjectSyncService({ query, projects, synchronize = syncOne }) {
+export function createProjectSyncService({ query, projects, targets, synchronize = syncOne }) {
   return {
     async list(id, user) {
-      await projects.get(id, user)
+      await projects.get(id, user, { ownerOnly: true })
       return (await query("SELECT revision,status,attempts,error,commit_sha,created_at,target_repository,target_branch FROM sync_jobs WHERE kind='project' AND record_id=$1 ORDER BY id DESC LIMIT 10", [id])).rows
     },
+    async target(id, user) {
+      const project = await projects.get(id, user, { ownerOnly: true }), own = project.created_by === user.id, target = await targets.state(id)
+      return { owner: own, authorized: !!target?.authorized && target.repository === project.sync_repository && target.branch === project.sync_branch,
+        target: own && target ? { installationId: target.installation_id, repositoryId: target.repository_id, repository: target.repository, branch: target.branch, allowPublic: target.allow_public } : null }
+    },
     async retry(id, user) {
-      await projects.get(id, user, { ownerOnly: true })
-      await query("UPDATE sync_jobs SET next_attempt_at=now() WHERE kind='project' AND record_id=$1 AND status='pending'", [id])
+      const project = await projects.get(id, user, { ownerOnly: true })
+      if (project.created_by !== user.id) throw Object.assign(new Error('GITHUB_OWNER_REQUIRED'), { status: 403 })
+      const grant = await targets.state(id)
+      if (!grant?.authorized || grant.repository !== project.sync_repository || grant.branch !== project.sync_branch) throw Object.assign(new Error('GITHUB_AUTHORIZATION_REQUIRED'), { status: 409 })
+      await query(`UPDATE sync_jobs SET status='pending',error=NULL,next_attempt_at=now() WHERE kind='project' AND record_id=$1
+        AND status IN ('pending','blocked') AND github_grant_id=$2 AND github_connection_id=$3`, [id, grant.id, grant.link_id])
       synchronize().catch(error => reportFailure('GitHub retry failed', error))
     },
   }
