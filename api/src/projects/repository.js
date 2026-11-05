@@ -1,3 +1,4 @@
+import { boundedLegacyList } from '../shared/legacy-list.js'
 const fields = 'p.id,p.name,p.revision,p.yaml,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,p.created_at,u.email AS creator'
 const join = 'FROM projects p LEFT JOIN users u ON u.id=p.created_by'
 
@@ -12,7 +13,7 @@ export function createProjectRepository(query) {
     async public(id) { return (await query(`SELECT ${fields} ${join} WHERE p.id=$1 AND p.visibility='public' AND p.deleted_at IS NULL`, [id])).rows[0] },
     async shared(token) { return (await query(`SELECT ${fields} ${join} WHERE p.share_token=$1 AND p.share_expires_at>now() AND p.deleted_at IS NULL`, [token])).rows[0] },
     async list(user) {
-      return (await query(`SELECT p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,u.email AS creator ${join} LEFT JOIN project_members m ON m.project_id=p.id AND m.user_id=$1 WHERE p.deleted_at IS NULL AND (p.visibility='public' OR p.created_by=$1 OR $2='Admin' OR m.user_id IS NOT NULL) ORDER BY p.name`, [user.id, user.role])).rows
+      return boundedLegacyList(query, `SELECT p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,u.email AS creator ${join} LEFT JOIN project_members m ON m.project_id=p.id AND m.user_id=$1 WHERE p.deleted_at IS NULL AND (p.visibility='public' OR p.created_by=$1 OR $2='Admin' OR m.user_id IS NOT NULL) ORDER BY p.name,p.id`, [user.id, user.role], { order: 'r.name,r.id', textFields: ['name','visibility','sync_repository','sync_branch','creator'] })
     },
     async access(id, userId) {
       return (await query(`SELECT p.id,p.created_by,p.visibility,m.role AS member_role FROM projects p
@@ -65,7 +66,7 @@ export function createProjectRepository(query) {
       await tx("UPDATE sync_jobs SET status='skipped',error='Destino de sincronización cambiado' WHERE kind='project' AND record_id=$1 AND status='pending'", [id])
     },
     async settingsHistory(id) {
-      return (await query('SELECT h.before,h.after,h.created_at,u.email AS author FROM project_settings_history h LEFT JOIN users u ON u.id=h.author_id WHERE h.project_id=$1 ORDER BY h.id DESC', [id])).rows
+      return boundedLegacyList(query, 'SELECT h.id::text AS _legacy_id,h.before,h.after,h.created_at,u.email AS author FROM project_settings_history h LEFT JOIN users u ON u.id=h.author_id WHERE h.project_id=$1 ORDER BY h.id DESC', [id], { order: 'r._legacy_id::bigint DESC', textFields: ['before','after','author'] })
     },
     async settingsHistoryPage(id, { limit, before }) {
       const args = [id], boundary = before === null ? '' : 'AND h.id<$2::bigint'
@@ -80,7 +81,7 @@ export function createProjectRepository(query) {
     async revokeShare(id) { await query('UPDATE projects SET share_token=NULL,share_expires_at=NULL WHERE id=$1', [id]) },
     async archive(id) { await query('UPDATE projects SET deleted_at=now() WHERE id=$1', [id]) },
     async revisions(id) {
-      return (await query('SELECT r.revision,r.summary,r.created_at,u.email AS author FROM project_revisions r LEFT JOIN users u ON u.id=r.author_id WHERE project_id=$1 ORDER BY revision DESC', [id])).rows
+      return boundedLegacyList(query, 'SELECT r.revision,r.summary,r.created_at,u.email AS author FROM project_revisions r LEFT JOIN users u ON u.id=r.author_id WHERE project_id=$1 ORDER BY revision DESC', [id], { order: 'r.revision DESC', textFields: ['summary','author'] })
     },
     async revisionsPage(id, { limit, before }) {
       const args = [id], boundary = before === null ? '' : 'AND r.revision<$2::integer'

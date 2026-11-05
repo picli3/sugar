@@ -1,3 +1,4 @@
+import { boundedLegacyList } from '../shared/legacy-list.js'
 import { libraryPageBytes } from './pagination.js'
 export function createBlockRepository(query) {
   return {
@@ -40,7 +41,7 @@ export function createBlockRepository(query) {
       await tx('INSERT INTO block_versions(block_id,version,yaml,author_id,summary) VALUES($1,$2,$3,$4,$5)', [id, version, yaml, authorId, summary])
     },
     async versions(id) {
-      return (await query('SELECT v.version,v.summary,v.created_at,u.email AS author FROM block_versions v LEFT JOIN users u ON u.id=v.author_id WHERE block_id=$1 ORDER BY version DESC', [id])).rows
+      return boundedLegacyList(query, 'SELECT v.version,v.summary,v.created_at,u.email AS author FROM block_versions v LEFT JOIN users u ON u.id=v.author_id WHERE block_id=$1 ORDER BY version DESC', [id], { order: 'r.version DESC', textFields: ['summary','author'] })
     },
     async versionsPage(id, { limit, before }) {
       const args = [id], boundary = before === null ? '' : 'AND v.version<$2::integer'

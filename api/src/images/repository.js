@@ -1,3 +1,4 @@
+import { boundedLegacyList } from '../shared/legacy-list.js'
 // All grants are evaluated against live project/library permissions, never URL secrecy.
 const projectRead = `(p.visibility='public' OR p.created_by=$2 OR EXISTS(SELECT 1 FROM project_members m WHERE m.project_id=p.id AND m.user_id=$2))`
 const readable = `(
@@ -15,7 +16,7 @@ export function createImageRepository(query) {
       return (await query(`SELECT i.mime,i.data FROM images i WHERE i.id=$1 AND i.deleted_at IS NULL AND EXISTS(SELECT 1 FROM image_references r JOIN projects p ON p.id=r.resource_id WHERE r.image_id=i.id AND r.resource_kind='project' AND r.current AND p.deleted_at IS NULL AND p.share_token=$2 AND p.share_expires_at>now())`, [id, token])).rows[0]
     },
     async list(user) {
-      return (await query(`SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,u.email AS creator FROM images i LEFT JOIN users u ON u.id=i.created_by WHERE i.deleted_at IS NULL AND (i.scope='catalog' OR i.owner_id=$1 OR $2='Admin') ORDER BY i.created_at DESC`, [user.id, user.role])).rows
+      return boundedLegacyList(query, `SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,u.email AS creator FROM images i LEFT JOIN users u ON u.id=i.created_by WHERE i.deleted_at IS NULL AND (i.scope='catalog' OR i.owner_id=$1 OR $2='Admin') ORDER BY i.created_at DESC,i.id DESC`, [user.id, user.role], { order: 'r.created_at DESC,r.id DESC', textFields: ['name','mime','scope','creator'] })
     },
     async page(user, { limit, after }) {
       const values = [], bind = value => { values.push(value); return '$' + values.length }
