@@ -37,7 +37,7 @@
 .library-layout.library-wide{grid-template-columns:minmax(0,1fr)}
 .library-layout.library-wide .library-list{display:none}
 .library-layout.library-wide .library-detail{width:100%;max-width:none}
-.floating-message{position:fixed;top:20px;right:20px;left:auto;z-index:1000;width:min(520px,calc(100vw - 40px));max-width:none;display:flex;align-items:flex-start;gap:12px;padding:15px 17px;border-radius:12px;box-shadow:0 16px 42px #0007;font-size:14px;line-height:1.45}
+.floating-message{position:fixed;top:auto;bottom:20px;right:20px;left:auto;z-index:1000;width:min(520px,calc(100vw - 40px));max-width:none;display:flex;align-items:flex-start;gap:12px;padding:15px 17px;border-radius:12px;box-shadow:0 16px 42px #0007;font-size:14px;line-height:1.45}
 .floating-message.error{background:#682b33;color:#fff2f2;border:2px solid #ff8588}
 .app-shell.light .floating-message.error{background:#fff1f2;color:#74262c;border-color:#c73843}
 .floating-message strong{display:block;margin-bottom:2px;font-size:15px}

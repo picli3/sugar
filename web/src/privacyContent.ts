@@ -6,7 +6,7 @@ export type PrivacyContent = { title: string; status: string; updated: string; b
 
 export const supportEmail = 'maykolrey@gmail.com'
 export const vulnerabilityUrl = 'https://github.com/picli3/sugar/security/advisories/new'
-export const retention = { trashDays: 30, reopenDays: 30, sessionDays: 7, shareLinkDays: 7, recoveryMinutes: 15, registrationMinutes: 30 }
+export const retention = { draftDays: 7, trashDays: 30, reopenDays: 30, sessionDays: 7, shareLinkDays: 7, recoveryMinutes: 15, registrationMinutes: 30 }
 
 export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
   es: {
@@ -46,6 +46,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
       { id: 'storage', heading: 'Cookies y almacenamiento del navegador', paragraphs: [], items: [
         `Una cookie de sesión (HttpOnly, SameSite=Strict, segura en HTTPS) que caduca a los ${retention.sessionDays} días o al cerrar sesión.`,
         'El navegador recuerda preferencias de interfaz (barra lateral, ancho del panel YAML y del editor); no contienen datos personales.',
+        `Los cambios sin guardar de tus proyectos se guardan como borrador sólo en este navegador, separados por cuenta y proyecto, durante ${retention.draftDays} días. Se borran al guardar, al descartarlos, al cerrar sesión o al cerrar tu cuenta; se conservan si la sesión caduca para que puedas recuperarlos.`,
       ] },
       { id: 'retention', heading: 'Conservación y borrado', paragraphs: [], items: [
         `Lo que mueves a la papelera puede restaurarse. Tras ${retention.trashDays} días puedes eliminarlo definitivamente tú o un administrador; nada se borra de forma automática y, mientras tanto, sigue ocupando cuota.`,
@@ -98,6 +99,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
       { id: 'storage', heading: 'Cookies and browser storage', paragraphs: [], items: [
         `One session cookie (HttpOnly, SameSite=Strict, secure over HTTPS) that expires after ${retention.sessionDays} days or when you sign out.`,
         'The browser remembers interface preferences (sidebar, YAML panel and editor width); they contain no personal data.',
+        `Unsaved project changes are kept as a draft only in this browser, separated by account and project, for ${retention.draftDays} days. They are removed when you save, discard them, sign out or close your account; they are kept if your session expires so you can recover them.`,
       ] },
       { id: 'retention', heading: 'Retention and deletion', paragraphs: [], items: [
         `Anything you move to the trash can be restored. After ${retention.trashDays} days you or an administrator can delete it permanently; nothing is deleted automatically and, meanwhile, it still counts toward your quota.`,

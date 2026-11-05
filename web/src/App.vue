@@ -15,6 +15,8 @@ import AccountDataSettings from './AccountDataSettings.vue'
 import PrivacyHelp from './PrivacyHelp.vue'
 import CanvasControls from './CanvasControls.vue'
 import GettingStarted from './GettingStarted.vue'
+import DraftNotices from './DraftNotices.vue'
+import { clearUserDrafts, loadDraft, purgeExpiredDrafts, removeDraft, saveDraft, type Draft } from './drafts'
 import EditorHelp from './EditorHelp.vue'
 import { templateDiagram, templateIds, templateInfo, type TemplateId } from './projectTemplates'
 import { selectedId, type SelectionChange } from './canvasSelection'
@@ -98,6 +100,46 @@ const flowNodes = ref<any[]>([]), flowEdges = ref<any[]>([])
 const selectedNode = ref<string | null>(null), selectedEdge = ref<string | null>(null)
 const panel = ref<'properties' | 'yaml' | 'history' | 'settings' | 'ai' | 'help'>('properties')
 const yamlDraft = ref(''), yamlDirty = ref(false), yamlError = ref(''), changeSummary = ref('')
+// #27 unsaved-work recovery: local drafts per user+project and explicit conflict decisions.
+const pendingDraft = ref<Draft | null>(null), saveConflict = ref<{ revision: number } | null>(null), draftBaseline = ref(''), expectedRevisionOverride = ref<number | null>(null)
+const draftStore = () => { try { return window.localStorage } catch { return null } }
+let draftTimer = 0
+function graphSnapshot() {
+  const positions = new Map(flowNodes.value.map(n => [n.id, n.position]))
+  const nodes = diagram.value.nodes.filter(n => positions.has(n.id)).map(n => ({ ...n, position: positions.get(n.id) || n.position }))
+  const edges = flowEdges.value.map(e => ({ id: e.id, source: e.source, target: e.target, sourcePort: e.sourceHandle, targetPort: e.targetHandle, ...(e.data?.route ? { route: e.data.route } : {}) }))
+  return YAML.stringify({ ...diagram.value, nodes, edges }, { lineWidth: 0 })
+}
+function recordDraft() {
+  const store = draftStore(), owner = user.value, current = project.value
+  if (!store || !owner || !current || page.value !== 'editor' || !editable.value || pendingDraft.value || saveConflict.value) return
+  const raw = yamlDirty.value, yaml = raw ? yamlDraft.value : graphSnapshot()
+  if (!raw && yaml === draftBaseline.value) { removeDraft(store, owner.id, current.id); return }
+  saveDraft(store, owner.id, current.id, { yaml, baseRevision: expectedRevisionOverride.value ?? current.revision, savedAt: Date.now(), raw })
+}
+const scheduleDraft = () => { window.clearTimeout(draftTimer); draftTimer = window.setTimeout(recordDraft, 800) }
+function restoreDraftState() {
+  const store = draftStore(), owner = user.value, current = project.value
+  draftBaseline.value = graphSnapshot(); saveConflict.value = null; expectedRevisionOverride.value = null; pendingDraft.value = null
+  if (!store || !owner || !current || !editable.value) return
+  const draft = loadDraft(store, owner.id, current.id)
+  if (draft && (draft.raw || draft.yaml !== draftBaseline.value)) pendingDraft.value = draft
+  else if (draft) removeDraft(store, owner.id, current.id)
+}
+function recoverDraft() {
+  const draft = pendingDraft.value; if (!draft || !project.value) return
+  if (draft.raw) { yamlDraft.value = draft.yaml; yamlDirty.value = true; panel.value = 'yaml' }
+  else { diagram.value = parseHardwareYaml(draft.yaml) as Diagram; yamlDraft.value = draft.yaml; yamlDirty.value = false; graphFromDiagram() }
+  // A draft based on an older revision must not silently overwrite newer server work: saving it
+  // sends its original base revision, so the server answers with a conflict to decide on.
+  expectedRevisionOverride.value = draft.baseRevision !== project.value.revision ? draft.baseRevision : null
+  pendingDraft.value = null; notice.value = t('draftRecovered'); scheduleDraft()
+}
+function discardDraft() { const store = draftStore(); if (store && user.value && project.value) removeDraft(store, user.value.id, project.value.id); pendingDraft.value = null }
+async function keepMineAfterConflict() { if (!saveConflict.value) return; expectedRevisionOverride.value = saveConflict.value.revision; saveConflict.value = null; await saveProject() }
+async function loadServerAfterConflict() { const id = project.value?.id; if (!id) return; discardDraft(); saveConflict.value = null; expectedRevisionOverride.value = null; await openProject(id) }
+function downloadMineAfterConflict() { syncFromGraph(); exportYaml() }
+watch([flowNodes, flowEdges, yamlDraft, yamlDirty, () => diagram.value.name], scheduleDraft, { deep: true })
 const revisionPages = usePagedList<Revision>(path => api(path), () => `/projects/${project.value!.id}/revisions/page`, item => String(item.revision))
 const revisions = revisionPages.items, revisionsCursor = revisionPages.cursor, revisionsLoading = revisionPages.loading
 const diffText = ref(''), compareFrom = ref<number | null>(null), compareTo = ref<number | null>(null)
@@ -147,7 +189,7 @@ async function api(path: string, method = 'GET', body?: unknown, raw = false): P
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}))
     if (res.status === 429) throw new Error(t('rateLimitWait').replace('{seconds}', res.headers.get('Retry-After') || '60'))
-    throw new Error(payload.error || (res.status === 409 ? t('conflict') : `HTTP ${res.status}`))
+    throw Object.assign(new Error(payload.error || (res.status === 409 ? t('conflict') : `HTTP ${res.status}`)), { status: res.status })
   }
   return raw ? res.text() : res.json()
 }
@@ -205,7 +247,7 @@ async function signIn() {
 }
 function endSession() { mfaChallenge.value = undefined; user.value = null; project.value = null; projectPages.reset(); blockPages.reset(); categoryContext.reset(); gallery.reset(); userPages.reset(); page.value = 'projects'; loginPassword.value = ''; currentPassword.value = ''; newPassword.value = ''; createPassword.value = ''; createEmail.value = '' }
 function handleSessionExpired() { if (user.value) expireSession() }
-function expireSession() { const message = t('sessionExpired'); endSession(); notice.value = message }
+function expireSession() { const message = t('sessionExpiredDrafts'); window.clearTimeout(draftTimer); recordDraft(); endSession(); notice.value = message }
 // Keyboard selection (Tab + Enter) reaches the inspector the same way a click does (#28).
 function onCanvasSelect(changes: SelectionChange[], kind: 'node' | 'edge') {
   const id = selectedId(changes)
@@ -214,10 +256,12 @@ function onCanvasSelect(changes: SelectionChange[], kind: 'node' | 'edge') {
   if (kind === 'edge' && selectedEdge.value !== id) { selectedEdge.value = id; selectedNode.value = null; panel.value = 'properties' }
 }
 function focusMain() { document.getElementById('main-content')?.focus() }
-function accountClosed() { const message = t('accountClosedNotice'); endSession(); notice.value = message }
+function accountClosed() { const message = t('accountClosedNotice'); clearDraftsForUser(); endSession(); notice.value = message }
 const reopenable = (closed?: string | null) => !!closed && Date.now() - new Date(closed).getTime() < 30 * 24 * 3600 * 1000
 async function reopenUser(id: string) { if (!admin.value) return; await manageUsers(async () => { await api(`/users/${id}/reopen`, 'POST') }) }
-async function signOut() { await run(async () => { await api('/logout', 'POST'); endSession() }) }
+function clearDraftsForUser() { const store = draftStore(); if (store && user.value) clearUserDrafts(store, user.value.id) }
+// Explicit sign-out and account closure remove this user's drafts; an expired session keeps them.
+async function signOut() { await run(async () => { await api('/logout', 'POST'); clearDraftsForUser(); endSession() }) }
 async function updatePreference(field: 'language' | 'theme', value: string) { if (!user.value) return; await run(async () => { await api('/me', 'PATCH', { [field]: value }); if (user.value) user.value = { ...user.value, [field]: value } as User }) }
 async function changeOwnPassword() { await run(async () => { await api('/me/password', 'POST', { currentPassword: currentPassword.value, newPassword: newPassword.value }); const message = t('passwordChangedSignIn'); currentPassword.value = ''; newPassword.value = ''; endSession(); notice.value = message }) }
 
@@ -305,7 +349,7 @@ async function openProject(id: string) { await run(async () => {
   projectSettings.value = { visibility: project.value!.visibility, sync_repository: project.value!.sync_repository || '', sync_branch: project.value!.sync_branch || 'main' }
   shareUrl.value = ''
   diagram.value = parseHardwareYaml(project.value!.yaml || '') as Diagram
-  yamlDraft.value = project.value!.yaml || ''; yamlDirty.value = false; yamlError.value = ''; selectedNode.value = null; selectedEdge.value = null; panel.value = 'properties'; page.value = 'editor'; graphFromDiagram(); await Promise.all([loadRevisions(), loadProjectIcons(id)])
+  yamlDraft.value = project.value!.yaml || ''; yamlDirty.value = false; yamlError.value = ''; selectedNode.value = null; selectedEdge.value = null; panel.value = 'properties'; page.value = 'editor'; graphFromDiagram(); restoreDraftState(); await Promise.all([loadRevisions(), loadProjectIcons(id)])
 }) }
 async function openProjectWithSettings(id: string) { await openProject(id); if (project.value?.id === id) await openProjectSettings() }
 async function openProjectSettings() { if (!project.value) return; const id = project.value.id, actor = user.value?.id + ':' + user.value?.role; panel.value = 'settings'; await run(async () => { const [, jobs] = await Promise.all([settingsHistoryPages.first(), api(`/projects/${id}/sync`)]); if (project.value?.id === id && actor === user.value?.id + ':' + user.value?.role) projectSyncJobs.value = jobs }); if (window.innerWidth < 1200) { await nextTick(); document.querySelector('.inspector')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } }
@@ -348,8 +392,16 @@ async function saveProject() { if (!project.value || !editable.value) return; aw
   syncFromGraph()
   const yaml = YAML.stringify(diagram.value, { lineWidth: 0 })
   await api('/validate', 'POST', { kind: 'project', yaml })
-  const saved = await api('/projects/' + project.value!.id, 'PUT', { yaml, expectedRevision: project.value!.revision, summary: changeSummary.value.trim() || undefined })
-  project.value!.revision = saved.revision; project.value!.yaml = yaml; yamlDraft.value = yaml; changeSummary.value = ''; notice.value = t('saved'); await loadRevisions(); await loadBasics()
+  let saved
+  try { saved = await api('/projects/' + project.value!.id, 'PUT', { yaml, expectedRevision: expectedRevisionOverride.value ?? project.value!.revision, summary: changeSummary.value.trim() || undefined }) }
+  catch (error) {
+    if ((error as { status?: number }).status !== 409) throw error
+    // Someone else saved meanwhile: keep the local draft and ask for an explicit decision.
+    const latest = await api('/projects/' + project.value!.id)
+    window.clearTimeout(draftTimer); recordDraft(); saveConflict.value = { revision: latest.revision }
+    return
+  }
+  project.value!.revision = saved.revision; project.value!.yaml = yaml; yamlDraft.value = yaml; expectedRevisionOverride.value = null; saveConflict.value = null; draftBaseline.value = graphSnapshot(); window.clearTimeout(draftTimer); { const store = draftStore(); if (store && user.value) removeDraft(store, user.value.id, project.value!.id) } changeSummary.value = ''; notice.value = t('saved'); await loadRevisions(); await loadBasics()
 }) }
 async function applyYaml() { await run(async () => {
   await api('/validate', 'POST', { kind: 'project', yaml: yamlDraft.value })
@@ -497,6 +549,7 @@ onUnmounted(() => window.removeEventListener('sugar:session-expired', handleSess
 function closeRegistration(complete = false) { verificationToken.value = ''; registrationOpen.value = false; notice.value = complete ? t('registrationComplete') : ''; errorMessage.value = '' }
 function closeRecovery(kind?: 'reset' | 'email_change') { accountAction.value = null; recoveryOpen.value = false; notice.value = kind ? t(kind === 'reset' ? 'recoveryComplete' : 'emailChangeComplete') : ''; errorMessage.value = '' }
 onMounted(async () => {
+  { const store = draftStore(); if (store) purgeExpiredDrafts(store) }
   window.addEventListener('sugar:session-expired', handleSessionExpired)
   try { registrationEnabled.value = (await api('/registration')).enabled } catch { registrationEnabled.value = false }
   try { recoveryEnabled.value = (await api('/recovery')).enabled } catch { recoveryEnabled.value = false }
@@ -540,6 +593,7 @@ onMounted(async () => {
                     <div class="project-grid"><article v-for="p in projects" :key="p.id" class="project-card" @click="openProject(p.id)"><div class="project-icon"><FolderIcon class="ui-icon icon-card" aria-hidden="true" /></div><h2>{{ p.name }}</h2><p>{{ t('revision') }} {{ p.revision }} · {{ p.visibility === 'public' ? t('public') : t('private') }}</p><p>{{ t('creator') }}: {{ p.creator || t('sugarUser') }}</p><div class="card-bottom"><button class="link-button" @click.stop="openProjectWithSettings(p.id)"><Cog6ToothIcon class="ui-icon" aria-hidden="true" /> {{ t('projectSettings') }}</button><button v-if="admin || (accountEditable && p.created_by === user.id)" class="text-danger" @click.stop="deleteProject(p.id)"><TrashIcon class="ui-icon" aria-hidden="true" /> {{ t('moveToTrash') }}</button><span v-else><ArrowTopRightOnSquareIcon class="ui-icon" aria-hidden="true" /></span></div></article></div><div class="header-actions project-pagination"><p class="hint" role="status">{{ t('projectsLoaded').replace('{count}', String(projects.length)) }}</p><button v-if="projectsCursor" class="secondary" :disabled="busy || projectsLoading" @click="moreProjects">{{ t('loadMoreProjects') }}</button></div>
         </template>
         <template v-else-if="page === 'editor' && project">
+          <DraftNotices :language="lang" :draft="pendingDraft" :revision="project.revision" :conflict="saveConflict" :busy="busy" @recover="recoverDraft" @discard="discardDraft" @keep-mine="keepMineAfterConflict" @load-server="loadServerAfterConflict" @download-mine="downloadMineAfterConflict" />
           <div class="editor-layout" :class="{'palette-hidden':paletteCollapsed}" :style="{'--yaml-panel-width': yamlPanelWidth + 'px'}"><aside class="palette"><div class="section-heading"><h3>{{ t('blocks') }}</h3><span>{{ blocks.length }}</span></div><p class="hint">{{ t('dragHint') }}</p><BlockCatalog :items="blocks" :categories="categories" mode="palette" :editable="editable" :language="lang" @add="makeNode" @dragstart="dragStart" /><CategoryPagesControl :cursor="categoriesCursor" :loading="busy || categoriesLoading" :count="categories.length" :language="lang" @more="moreCategories" /><div class="pagination-controls"><button v-if="blocksCursor" class="secondary wide" :disabled="busy || blocksLoading || categoriesLoading" @click="moreBlocks">{{ t('loadMoreBlocks') }}</button><p class="hint" role="status">{{ t('blocksLoaded').replace('{count}', String(blocks.length)) }}</p><p v-if="blocksCursor" class="hint">{{ t('blockSearchLoaded') }}</p></div></aside>
             <div class="canvas" @dragover.prevent @drop="dropBlock"><VueFlow v-model:nodes="flowNodes" v-model:edges="flowEdges" :nodes-draggable="editable" :nodes-connectable="editable" :elements-selectable="true" :delete-key-code="null" fit-view-on-init @connect="connect" @node-click="selectedNode=$event.node.id; selectedEdge=null; panel='properties'" @edge-click="selectedEdge=$event.edge.id; selectedNode=null; panel='properties'" @pane-click="selectedNode=null; selectedEdge=null" @nodes-change="changes => onCanvasSelect(changes, 'node')" @edges-change="changes => onCanvasSelect(changes, 'edge')"><Background pattern-color="#8b95a8" :gap="20" :size="1" /><CanvasControls :language="lang" /><template #edge-routed="edgeProps"><RoutedEdge v-bind="edgeProps" /></template><template #node-hardware="{ data }"><div class="hardware-node"><div class="node-header" :class="{ 'has-custom-color': !!safeHexColor(data.block.color) }" :style="headerStyle(data.block.color)"><span class="node-symbol"><BlockSymbol :block="data.block" :icons="categoryIconMap" class="icon-node" /></span><strong>{{ data.block.name }}</strong></div><div class="node-model">{{ data.block.model || data.block.function }}</div><div v-for="port in data.block.ports" :key="port.id" class="node-port"><Handle v-if="port.direction !== 'out'" :id="port.id" type="target" :position="Position.Left" :style="safePortColor(port.color) ? { backgroundColor: port.color } : undefined" /><span>{{ port.label }}</span><em>{{ port.protocol }}</em><Handle v-if="port.direction !== 'in'" :id="port.id" type="source" :position="Position.Right" :style="safePortColor(port.color) ? { backgroundColor: port.color } : undefined" /></div></div></template></VueFlow><div v-if="!diagram.nodes.length" class="canvas-hint"><CpuChipIcon class="ui-icon icon-empty" aria-hidden="true" /><p>{{ t('insertHint') }}</p></div><button class="primary ai-canvas-button" @click="openAi"><SparklesIcon class="ui-icon" aria-hidden="true" /> {{ t('aiReview') }}</button></div>
             <aside class="inspector"><div class="tabs"><button :class="{active: panel==='ai'}" @click="openAi"><SparklesIcon class="ui-icon" aria-hidden="true" /> {{ t('ai') }}</button><button :class="{active: panel==='properties'}" @click="panel='properties'"><WrenchScrewdriverIcon class="ui-icon" aria-hidden="true" /> {{ t('properties') }}</button><button :class="{active: panel==='yaml'}" @click="panel='yaml'"><CodeBracketIcon class="ui-icon" aria-hidden="true" /> YAML</button><button :class="{active: panel==='history'}" @click="panel='history'; loadRevisions()"><ClockIcon class="ui-icon" aria-hidden="true" /> {{ t('history') }}</button><button :class="{active: panel==='settings'}" @click="openProjectSettings"><Cog6ToothIcon class="ui-icon" aria-hidden="true" /> {{ t('projectSettings') }}</button><button :class="{active: panel==='help'}" @click="panel='help'"><QuestionMarkCircleIcon class="ui-icon" aria-hidden="true" /> {{ t('help') }}</button></div>

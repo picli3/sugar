@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { privacyContent, retention, supportEmail, vulnerabilityUrl } from '../src/privacyContent.ts'
 import { trashRetentionDays } from '../../api/src/trash/repository.js'
+import { draftRetentionMs } from '../src/drafts.ts'
 
 const source = path => readFileSync(new URL('../../api/src/' + path, import.meta.url), 'utf8')
 
@@ -18,6 +19,7 @@ test('both languages describe the same sections with the same shape', () => {
 test('stated retention periods match the running code', () => {
   assert.equal(retention.trashDays, trashRetentionDays)
   assert.equal(retention.reopenDays, trashRetentionDays)
+  assert.equal(retention.draftDays * 24 * 60 * 60 * 1000, draftRetentionMs)
   assert.match(source('auth/service.js'), new RegExp(`sessionLifetime = ${retention.sessionDays} \\* 24 \\* 60 \\* 60`))
   assert.match(source('recovery/repository.js'), new RegExp(`interval '${retention.recoveryMinutes} minutes'`))
   assert.match(source('registration/repository.js'), new RegExp(`interval '${retention.registrationMinutes} minutes'`))
