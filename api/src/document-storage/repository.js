@@ -15,7 +15,7 @@ export function createDocumentStorageRepository(q) {
     const calls = `FROM ai_calls c LEFT JOIN projects p ON p.id=c.project_id ${callFilter}`
     return (await tx(`SELECT count(*) FILTER(WHERE kind='project') AS projects,count(*) FILTER(WHERE kind='block') AS blocks,
       count(*) FILTER(WHERE kind='revision') AS revisions,count(*) FILTER(WHERE kind='sync') AS sync_jobs,
-      count(*) FILTER(WHERE kind='analysis') AS analyses,count(*) FILTER(WHERE kind='ai_call') AS ai_calls,
+      count(*) FILTER(WHERE kind='analysis') AS analyses,count(*) FILTER(WHERE kind='ai_call') AS ai_calls,count(*) FILTER(WHERE kind='category') AS categories,
       COALESCE(sum(bytes) FILTER(WHERE kind='ai_reservation'),0) AS ai_reserved_bytes,COALESCE(sum(bytes),0) AS bytes FROM (
       SELECT 'project' AS kind,octet_length(p.yaml)::bigint+octet_length(p.name) AS bytes FROM projects p ${projectFilter}
       UNION ALL SELECT 'block',octet_length(b.name) FROM blocks b ${blockFilter}
@@ -25,6 +25,7 @@ export function createDocumentStorageRepository(q) {
       UNION ALL SELECT 'analysis',${analysisStorageBytes('a')} FROM project_analyses a LEFT JOIN projects p ON p.id=a.project_id ${aiFilter}
       UNION ALL SELECT 'ai_call',1024+octet_length(c.payload_hash)::bigint ${calls}
       UNION ALL SELECT 'ai_reservation',c.storage_bytes ${calls}
+      UNION ALL SELECT 'category',512+COALESCE(octet_length(c.name),0)::bigint+COALESCE(octet_length(c.name_key),0)+COALESCE(octet_length(c.slug),0)+COALESCE(octet_length(c.icon),0) FROM block_categories c ${ownerId ? 'WHERE c.owner_id=$1' : ''}
       ) retained`, ownerId ? [ownerId] : [])).rows[0]
   }
   return {

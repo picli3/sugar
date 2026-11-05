@@ -32,6 +32,7 @@ test('document quotas coordinate content writes, charge owners, retain history a
   await q('CREATE TABLE project_settings_history(id bigserial PRIMARY KEY,project_id uuid,author_id uuid,before jsonb,after jsonb,created_at timestamptz DEFAULT now())')
   await q('ALTER TABLE projects ADD COLUMN share_token text,ADD COLUMN share_expires_at timestamptz')
   await q('CREATE TABLE images(id uuid PRIMARY KEY,name text,mime text,data bytea NOT NULL,owner_id uuid,scope text)')
+  await q('CREATE TABLE block_categories(id uuid PRIMARY KEY,name text,name_key text,slug text,icon text,owner_id uuid,deleted_at timestamptz)')
   await initAiDb(q);await initDocumentStorage(q);await initImageStorage(q)
   const storage=createDocumentStorage({repository:createDocumentStorageRepository(q),transaction}),otherStorage=createDocumentStorage({repository:createDocumentStorageRepository(q),transaction}),imageStorage=createImageStorage({q,transaction})
   const a={id:crypto.randomUUID(),role:'dev'},b={id:crypto.randomUUID(),role:'dev'},root={id:crypto.randomUUID(),role:'Admin'}

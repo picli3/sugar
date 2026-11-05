@@ -105,7 +105,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   registerDocumentStorageRoutes(app, documentStorage)
   registerDocumentRoutes(app, q)
   registerUserRoutes(app, createUserService(userRepository, { runCredential: controls.runCredential, passwordChanged: recovery.passwordChanged }))
-  registerCategoryRoutes(app, { query: q, transaction })
+  registerCategoryRoutes(app, { query: q, transaction, storage: documentStorage })
   registerBlockRoutes(app, blocks)
   registerProjectRoutes(app, projects)
   registerSyncRoutes(app, sync)

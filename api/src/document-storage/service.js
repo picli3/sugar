@@ -44,5 +44,14 @@ export function createDocumentStorage({ repository, transaction }) {
       if (!['project','block'].includes(kind)) throw Error('Invalid document storage kind')
       return transaction(async tx => { await lock(tx); const result = await action(tx); await enforce(kind, id, tx); return result })
     },
+    async metadata(action) {
+      return transaction(async tx => {
+        await lock(tx)
+        const { result, ownerId } = await action(tx), limits = await config(tx)
+        if (BigInt((await usage(null, tx)).bytes) > BigInt(limits.platformBytes)) exceeded('platformBytes')
+        if (ownerId && BigInt((await usage(ownerId, tx)).bytes) > BigInt(limits.userBytes)) exceeded('userBytes')
+        return result
+      })
+    },
   }
 }

@@ -25,6 +25,7 @@ test('AI storage reserves before billing, settles within capacity, coordinates w
   await q('CREATE TABLE block_versions(block_id uuid,yaml text,summary text)')
   await q('CREATE TABLE sync_jobs(kind text,record_id uuid,yaml text,target_repository text,target_branch text)')
   await q('CREATE TABLE settings(key text PRIMARY KEY,value jsonb)')
+  await q('CREATE TABLE block_categories(name text,name_key text,slug text,icon text,owner_id uuid)')
   await initAiDb(q); await initDocumentStorage(q)
   const owner = crypto.randomUUID(), editor = crypto.randomUUID(), project = crypto.randomUUID()
   const snapshot = { name: 'Fixture', nodes: [{ id: 'n', position: { x: 0, y: 0 }, block: { name: 'Fixture', function: 'Control', ports: [{ id: 'p', label: 'P', protocol: 'IO', direction: 'in' }] } }], edges: [] }
