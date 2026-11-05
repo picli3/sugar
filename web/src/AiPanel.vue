@@ -58,7 +58,7 @@ async function more() { error.value = ''; try { await pages.more() } catch(e) { 
     <article v-if="current" class="ai-result" :aria-label="t('aiSnapshot')">
       <p v-if="stale" class="message error">{{ t('aiStale') }}</p>
       <h3>{{ current.action === 'analyze' ? t('aiAnalyze') : t('aiRecommend') }}</h3>
-      <p class="hint">{{ new Date(current.created_at).toLocaleString(language) }} · {{ current.author || t('aiSugarUser') }}<br>{{ current.provider }} / {{ current.model }} · {{ t('aiBase') }} {{ current.base_revision }}<br>{{ t('aiSnapshot') }}: {{ current.snapshot_hash.slice(0,12) }}</p>
+      <p class="hint">{{ new Date(current.created_at).toLocaleString(language) }} · {{ current.author || t('aiSugarUser') }}<br>{{ t('aiBase') }} {{ current.base_revision }}<br>{{ t('aiSnapshot') }}: {{ current.snapshot_hash.slice(0,12) }}</p>
       <p v-if="current.focus" class="hint">{{ t('aiFocus') }}: {{ current.focus }}</p>
       <p class="ai-response">{{ current.response }}</p>
       <p class="hint">{{ t('aiCaution') }}</p>

@@ -25,9 +25,11 @@ test('stated retention periods match the running code', () => {
   assert.match(source('registration/repository.js'), new RegExp(`interval '${retention.registrationMinutes} minutes'`))
   assert.match(source('projects/repository.js'), new RegExp(`interval '${retention.shareLinkDays} days'`))
 })
-test('AI disclosure matches the provider and the omitted fields', () => {
-  const ai = source('ai.js')
-  assert.match(ai, /https:\/\/api\.deepseek\.com\//)
-  assert.match(ai, /token\|secret\|password\|credential\|authorization\|api\[_-\]\?key\|image\|email\|user/)
-  assert.match(JSON.stringify(privacyContent.es), /DeepSeek/)
+test('AI disclosure names every selectable provider and the omitted fields', async () => {
+  const { providers } = await import('../../api/src/ai/providers.js')
+  for (const language of ['es', 'en']) {
+    const ai = privacyContent[language].sections.find(section => section.id === 'ai').paragraphs.join(' ')
+    for (const provider of Object.values(providers)) assert.ok(ai.includes(provider.label), `${language}: ${provider.label}`)
+  }
+  assert.match(source('ai.js'), /token\|secret\|password\|credential\|authorization\|api\[_-\]\?key\|image\|email\|user/)
 })

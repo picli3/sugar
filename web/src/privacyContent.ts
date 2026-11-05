@@ -32,8 +32,8 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
         `Los enlaces privados de sólo lectura caducan a los ${retention.shareLinkDays} días y puedes revocarlos en cualquier momento.`,
         'Otras personas te ven por tu nombre público o como «Usuario de Sugar». Tu correo sólo lo ves tú y los administradores; quien gestiona un proyecto ve el correo de los colaboradores que invitó.',
       ] },
-      { id: 'ai', heading: 'Análisis con IA (DeepSeek)', paragraphs: [
-        'La IA sólo está disponible si un administrador la activa, y sólo se usa cuando tú pides un análisis o recomendación. El proveedor configurado es DeepSeek; los datos se procesan según sus propias condiciones y pueden tratarse fuera de tu país.',
+      { id: 'ai', heading: 'Análisis con IA', paragraphs: [
+        'La IA sólo está disponible si un administrador la activa, y sólo se usa cuando tú pides un análisis o recomendación. El administrador elige un único proveedor entre DeepSeek, OpenAI, Claude (Anthropic), Google Gemini, OpenRouter, Kimi (Moonshot), Z.ai (GLM), Grok (xAI) o MiniMax; tus datos se envían sólo a ese proveedor, se procesan según sus propias condiciones y pueden tratarse fuera de tu país.',
         'Se envía: el nombre del proyecto; de cada bloque, su nombre, función, modelo, propiedades y puertos; las conexiones; y el texto que escribas como enfoque.',
         'No se envía: correos, cuentas, imágenes ni otros proyectos. Se omiten las propiedades cuyo nombre indique credenciales, contraseñas, tokens, imágenes, correos o usuarios, y las URL con credenciales.',
         'El resultado se guarda en el proyecto y lo pueden ver quienes tienen acceso a él. No escribas en tus diagramas información que no quieras compartir con el proveedor.',
@@ -85,8 +85,8 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
         `Private read-only links expire after ${retention.shareLinkDays} days and you can revoke them at any time.`,
         'Other people see you by your public name or as “Sugar user”. Only you and administrators see your email; whoever manages a project sees the email of the collaborators they invited.',
       ] },
-      { id: 'ai', heading: 'AI analysis (DeepSeek)', paragraphs: [
-        'AI is only available if an administrator enables it, and it is only used when you request an analysis or recommendation. The configured provider is DeepSeek; data is processed under its own terms and may be handled outside your country.',
+      { id: 'ai', heading: 'AI analysis', paragraphs: [
+        'AI is only available if an administrator enables it, and it is only used when you request an analysis or recommendation. The administrator chooses a single provider among DeepSeek, OpenAI, Claude (Anthropic), Google Gemini, OpenRouter, Kimi (Moonshot), Z.ai (GLM), Grok (xAI) or MiniMax; your data is sent only to that provider, processed under its own terms and may be handled outside your country.',
         'Sent: the project name; for each block its name, function, model, properties and ports; the connections; and the text you write as the focus.',
         'Not sent: emails, accounts, images or other projects. Properties whose names suggest credentials, passwords, tokens, images, emails or users are omitted, as are URLs with credentials.',
         'The result is stored in the project and can be seen by everyone with access to it. Do not put information in your diagrams that you do not want to share with the provider.',

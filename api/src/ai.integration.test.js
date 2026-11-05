@@ -20,6 +20,9 @@ test('AI integration with real authentication and PostgreSQL (isolated mock serv
     const c=await request('/ai',{cookie:admin,method:'PUT',body:{provider:'deepseek',model:'deepseek-flash',enabled:true,token:'isolated-mock-token'}})
     assert.equal(c.status,200);assert.equal(c.body.tokenConfigured,true);assert.equal('token' in c.body,false)
     assert.equal((await request('/ai/test',{method:'POST',cookie:admin,body:{requestId:crypto.randomUUID()}})).status,200)
+    // #30: a different provider never inherits the DeepSeek key.
+    const switched=await request('/ai',{cookie:admin,method:'PUT',body:{provider:'claude',model:'claude-test-model',enabled:true,token:''}});assert.equal(switched.status,400);assert.match(JSON.stringify(switched.body),/aiNoToken/)
+    assert.equal((await request('/ai',{cookie:admin})).body.provider,'deepseek')
     const preserved=await request('/ai',{cookie:admin,method:'PUT',body:{provider:'deepseek',model:'deepseek-flash',enabled:true,token:''}})
     assert.equal(preserved.body.tokenConfigured,true)
     for(const [email,role] of [['dev@local','dev'],['view@local','view'],['outsider@local','dev']]) {
@@ -42,6 +45,9 @@ test('AI integration with real authentication and PostgreSQL (isolated mock serv
     const path=`/projects/${project.id}/analyses`
     const result=await request(path,{method:'POST',cookie:dev,body});assert.equal(result.status,201);analysisId=result.body.id
     const replay=await request(path,{method:'POST',cookie:dev,body});assert.equal(replay.body.id,analysisId)
+    // #30: the provider and model stay transparent to users; only Admin sees them.
+    for (const view of [result.body,(await request(path+'/'+analysisId,{cookie:dev})).body,(await request(path+'/page',{cookie:dev})).body.items[0]]) {assert.equal('provider' in view,false);assert.equal('model' in view,false)}
+    assert.equal((await request(path+'/'+analysisId,{cookie:admin})).body.provider,'deepseek')
     const detail=await request(path+'/'+analysisId,{cookie:dev});assert.deepEqual(detail.body.snapshot,snapshot);assert.match(detail.body.response,/Resumen/);assert.equal(detail.body.usage.total_tokens,300)
     const savedProject=await request('/projects/'+project.id,{cookie:dev});assert.equal(savedProject.body.revision,1);assert.notEqual(YAML.parse(savedProject.body.yaml).name,snapshot.name)
     assert.equal((await request(path,{method:'POST',cookie:dev,body:{...body,focus:'otra'}})).status,409)

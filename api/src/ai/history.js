@@ -5,7 +5,12 @@ import { boundedMetadataPage } from '../shared/legacy-list.js'
 
 export const analysisFields = 'a.id,a.project_id,a.author_id,u.display_name AS author_name,u.email AS author_email,a.snapshot_hash,a.base_revision,a.action,a.focus,a.language,a.provider,a.model,a.usage,a.created_at'
 const textFields = ['author_name','author_email','snapshot_hash','action','focus','language','provider','model','usage']
-export const analysisAuthor = (row, viewer) => row && ({ ...person(row, viewer, 'author'), author_id: row.author_id })
+// Provider and model stay transparent to users (#30): only Admin sees which one answered.
+export const analysisAuthor = (row, viewer) => {
+  if (!row) return row
+  const { provider, model, ...rest } = { ...person(row, viewer, 'author'), author_id: row.author_id }
+  return viewer?.role === 'Admin' ? { ...rest, provider, model } : rest
+}
 export function createAnalysisHistory(query) {
   const read = (id, limit, tail, args) => boundedMetadataPage(query,
     `SELECT ${analysisFields},to_char(a.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time

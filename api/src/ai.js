@@ -4,8 +4,8 @@ import { noStore } from './shared/http.js'
 import { validateProject, stringify } from './model.js'
 import { analysisAuthor, analysisFields, createAnalysisHistory } from './ai/history.js'
 import { aiResponseBytes } from './ai/storage.js'
+import { modelPattern, providerList, providerRequest, providerResult, providers } from './ai/providers.js'
 
-export const MODELS = ['deepseek-flash', 'deepseek-v4-pro']
 export const fail = (status, code) => { throw Object.assign(new Error(code), { status }) }
 export function encryptionKey() {
   const hex = process.env.AI_ENCRYPTION_KEY || ''
@@ -26,14 +26,17 @@ export function decryptToken(value) {
   } catch { fail(503, 'aiKeyMissing') }
 }
 export function publicConfig(config = {}) {
-  return { provider: 'deepseek', model: config.model || MODELS[0], enabled: !!config.enabled, tokenConfigured: !!config.token, encryptionReady: /^[a-f0-9]{64}$/i.test(process.env.AI_ENCRYPTION_KEY || '') }
+  const provider = providers[config.provider] ? config.provider : 'deepseek'
+  return { provider, model: config.model || providers[provider].defaultModel || '', providers: providerList(), enabled: !!config.enabled, tokenConfigured: !!config.token, encryptionReady: /^[a-f0-9]{64}$/i.test(process.env.AI_ENCRYPTION_KEY || '') }
 }
 export function updateConfig(old, input) {
-  if (input.provider !== 'deepseek' || !MODELS.includes(input.model) || typeof input.enabled !== 'boolean' || (input.token != null && (typeof input.token !== 'string' || input.token.length > 4096)) || (input.removeToken != null && typeof input.removeToken !== 'boolean')) fail(400, 'aiInvalidConfig')
+  if (!providers[input.provider] || typeof input.model !== 'string' || !modelPattern.test(input.model) || typeof input.enabled !== 'boolean' || (input.token != null && (typeof input.token !== 'string' || input.token.length > 4096)) || (input.removeToken != null && typeof input.removeToken !== 'boolean')) fail(400, 'aiInvalidConfig')
   if (input.removeToken && input.token?.trim()) fail(400, 'aiInvalidConfig')
-  const token = input.removeToken ? null : input.token?.trim() ? encryptToken(input.token.trim()) : old.token || null
+  // An API key belongs to its provider: switching provider never carries the previous key over.
+  const sameProvider = (old.provider || 'deepseek') === input.provider
+  const token = input.removeToken ? null : input.token?.trim() ? encryptToken(input.token.trim()) : sameProvider ? old.token || null : null
   if (input.enabled && !token) fail(400, 'aiNoToken')
-  return { provider: 'deepseek', model: input.model, enabled: input.enabled, token }
+  return { provider: input.provider, model: input.model, enabled: input.enabled, token }
 }
 // Deliberately whitelist diagram fields. Credentials and media properties are omitted recursively.
 function cleanProperties(value) {
@@ -57,19 +60,27 @@ export function analysisMessages(snapshot, action, focus, language) {
   if (Buffer.byteLength(JSON.stringify(messages)) > 200 * 1024) fail(413, 'aiContextTooLarge')
   return messages
 }
-export async function callDeepSeek(config, messages, { fetchImpl = fetch, timeoutMs = 120000, maxTokens = 4000 } = {}) {
+// `probe` (connection test) only proves the key and endpoint work: reasoning models may spend a
+// tiny budget before answering, so a truncated or empty reply still counts as reachable.
+export async function callConfiguredProvider(config, messages, { fetchImpl = fetch, timeoutMs = 120000, maxTokens = 4000, probe = false } = {}) {
+  const id = providers[config.provider] ? config.provider : 'deepseek'
   const token = decryptToken(config.token)
   try {
-    const response = await fetchImpl('https://api.deepseek.com/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(timeoutMs), body: JSON.stringify({ model: config.model, messages, max_tokens: maxTokens, stream: false, thinking: { type: 'disabled' } }) })
-    if (!response.ok) fail(response.status === 401 ? 400 : response.status === 402 ? 402 : response.status === 429 ? 429 : 502, response.status === 401 ? 'aiInvalidToken' : response.status === 402 ? 'aiNoBalance' : response.status === 429 ? 'aiRateLimit' : 'aiProviderError')
-    const body = await providerJson(response), choice = body.choices?.[0]
-    if (choice?.finish_reason === 'length') fail(502, 'aiOutputLimit')
-    return boundedResult({ response: choice?.message?.content, usage: body.usage })
+    const request = providerRequest(id, config.model, token, messages, maxTokens)
+    const response = await fetchImpl(request.url, { method: 'POST', headers: request.headers, signal: AbortSignal.timeout(timeoutMs), body: JSON.stringify(request.body) })
+    if (!response.ok) fail([401, 403].includes(response.status) ? 400 : response.status === 402 ? 402 : response.status === 429 ? 429 : 502, [401, 403].includes(response.status) ? 'aiInvalidToken' : response.status === 402 ? 'aiNoBalance' : response.status === 429 ? 'aiRateLimit' : 'aiProviderError')
+    const result = providerResult(id, await providerJson(response))
+    if (probe) return boundedResult({ response: result.response?.trim() ? result.response : 'OK', usage: result.usage })
+    if (result.truncated) fail(502, 'aiOutputLimit')
+    return boundedResult({ response: result.response, usage: result.usage })
   } catch (e) {
     if (e.status) throw e
     fail(e.name === 'TimeoutError' || e.name === 'AbortError' ? 504 : 502, e.name === 'TimeoutError' || e.name === 'AbortError' ? 'aiTimeout' : 'aiProviderError')
   }
 }
+// Historical name kept for callers and tests that predate multiple providers.
+export const callDeepSeek = callConfiguredProvider
+
 export function boundedResult(result) {
   if (typeof result?.response !== 'string' || !result.response.trim()) fail(502, 'aiProviderError')
   if (Buffer.byteLength(result.response) > aiResponseBytes) fail(502, 'aiProviderTooLarge')
@@ -102,7 +113,7 @@ export async function initAiDb(q) {
   await q('CREATE INDEX IF NOT EXISTS project_analyses_history ON project_analyses(project_id,created_at DESC,id DESC)')
   await initAiQuotas(q)
 }
-export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, quota, callProvider = callDeepSeek }) {
+export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, quota, callProvider = callConfiguredProvider }) {
   const route = fn => (req,res,next) => Promise.resolve(fn(req,res)).catch(next)
   const config = async () => (await q("SELECT value FROM settings WHERE key='ai'")).rows[0]?.value || {}
   const fields = analysisFields, history = createAnalysisHistory(q)
@@ -126,7 +137,7 @@ export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, 
     const messages = [{ role: 'user', content: 'Reply only OK.' }]
     const call = await quota.reserve(req.user.id, requestId, fingerprint({ test: true, model: c.model, token: c.token }), reservedTokens(messages, 16))
     if (call.replay) return res.json({ ok: true })
-    try { const result = await callProvider(c, messages, { maxTokens: 16 }); await quota.settle(call.id, result.usage); res.json({ ok: true }) }
+    try { const result = await callProvider(c, messages, { maxTokens: 16, probe: true }); await quota.settle(call.id, result.usage); res.json({ ok: true }) }
     catch (e) { await quota.abandon(call.id); throw e }
   }))
   app.get('/api/projects/:id/analyses/page', noStore, route(async (req,res) => {
@@ -157,7 +168,7 @@ export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, 
     }
     const c = await config()
     if (!c.enabled || !c.token) fail(503, 'aiUnavailable')
-    const plan = { snapshot, snapshot_hash: hash, action, focus, language, provider: 'deepseek', model: c.model }
+    const plan = { snapshot, snapshot_hash: hash, action, focus, language, provider: providers[c.provider] ? c.provider : 'deepseek', model: c.model }
     const call = await quota.reserve(req.user.id, requestId, fingerprint({ project: project.id, hash, action, focus, language, baseRevision }), reservedTokens(messages), project.id, plan)
     if (call.replay) return res.json({ id: call.analysisId })
     try {

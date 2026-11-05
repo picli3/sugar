@@ -24,7 +24,8 @@ test('empty token preserves ciphertext, replacement rotates it, removal disables
   assert.equal(updateConfig(baseConfig, { ...input, enabled: false, removeToken: true }).token, null)
   assert.throws(() => updateConfig(baseConfig, { ...input, removeToken: true }), /aiNoToken/)
   assert.throws(() => updateConfig(baseConfig, { ...input, provider: 'other' }), /aiInvalidConfig/)
-  assert.throws(() => updateConfig(baseConfig, { ...input, model: 'unknown' }), /aiInvalidConfig/)
+  for (const model of ['', 'bad model!', 'x'.repeat(129), '../etc', 42]) assert.throws(() => updateConfig(baseConfig, { ...input, model }), /aiInvalidConfig/)
+  assert.equal(updateConfig(baseConfig, { ...input, model: 'vendor/model-1.5:free' }).model, 'vendor/model-1.5:free')
 })
 test('context excludes media, credentials, positioning, library IDs and unknown fields', () => {
   const messages = analysisMessages({ ...snapshot, credentials: 'private' }, 'analyze', 'Power', 'es')

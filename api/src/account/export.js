@@ -62,7 +62,8 @@ export function createAccountExport({ transaction, maxConcurrent = 2 }) {
           await zip.add(base + 'members.json', json(await rows(`SELECT u.email,u.display_name,m.role,m.created_at FROM project_members m JOIN users u ON u.id=m.user_id
             WHERE m.project_id=$1 ORDER BY m.created_at,m.user_id`, [project.id])), now)
           for (const { id } of await rows('SELECT id FROM project_analyses WHERE project_id=$1 ORDER BY created_at,id', [project.id])) {
-            const [row] = await rows(`SELECT a.id,a.action,a.focus,a.language,a.provider,a.model,a.base_revision,a.snapshot_hash,a.snapshot,a.response,a.usage,a.created_at,${author('a')}
+            // Like the board, exports keep the AI provider and model transparent to users (#30).
+            const [row] = await rows(`SELECT a.id,a.action,a.focus,a.language,a.base_revision,a.snapshot_hash,a.snapshot,a.response,a.usage,a.created_at,${author('a')}
               FROM project_analyses a LEFT JOIN users u ON u.id=a.author_id WHERE a.id=$1`, [id])
             await zip.add(`${base}analyses/${id}.json`, json(person(row, user, 'author')), row.created_at)
           }
