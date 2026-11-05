@@ -18,6 +18,12 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
   const write = (id, action) => storage ? storage.write('project', id, action) : transaction(action)
   return {
     get,
+    async icons(id, user, query = {}) {
+      const project = await get(id, user), base = query.baseRevision
+      if (Object.keys(query).some(key => key !== 'baseRevision') || (base !== undefined && (typeof base !== 'string' || !/^[1-9]\d{0,9}$/.test(base) || Number(base) > 2147483647))) error(400, 'Revisión de contexto inválida / Invalid context revision')
+      if (base !== undefined && Number(base) !== project.revision) error(409, 'El proyecto cambió; recarga para actualizar sus iconos / Project changed; reload to update its icons')
+      return categoryIcons(project.yaml)
+    },
     list: user => projects.list(user),
     async page(user, query) {
       const input = pageInput(query)

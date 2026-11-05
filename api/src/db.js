@@ -16,6 +16,7 @@ import { initProjectPaginationDb } from './projects/pagination.js'
 import { initBlockPaginationDb } from './blocks/pagination.js'
 import { initImageStorage } from './images/quotas.js'
 import { initDocumentStorage } from './document-storage/migration.js'
+import { initCategoryPaginationDb } from './categories/pagination.js'
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 pool.on('error', error => reportFailure('Database pool error', error))
@@ -53,6 +54,7 @@ export async function initDb() {
   await q(`ALTER TABLE block_categories ADD COLUMN IF NOT EXISTS icon text`)
   await q(`UPDATE block_categories SET icon=CASE slug WHEN 'alimentacion' THEN 'power' WHEN 'controladores' THEN 'cpu' WHEN 'sensores' THEN 'sensor' ELSE 'cube' END WHERE parent_id IS NULL AND icon IS NULL`)
   await migrateLibraryOwnership(transaction)
+  await initCategoryPaginationDb(q)
   await initBlockPaginationDb(q)
   await q(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS category_slug text`)
   await q(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS subcategory_slug text`)

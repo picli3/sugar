@@ -9,7 +9,9 @@ export const nameKey = value => value.normalize('NFD').replace(/[\u0300-\u036f]/
 export const slugBase = value => nameKey(value).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'categoria'
 
 export async function listCategories(query = q, user) {
-  return (await query(`SELECT id,slug,name,parent_id,icon,deleted_at,owner_id FROM block_categories WHERE owner_id IS NULL OR owner_id=$1 OR $2='Admin' ORDER BY parent_id NULLS FIRST,name`, [user.id, user.role])).rows.map(c => ({ ...c, permissions: libraryPermissions(c, user) }))
+  const rows = (await query(`SELECT id,slug,name,parent_id,icon,deleted_at,owner_id FROM block_categories WHERE owner_id IS NULL OR owner_id=$1 OR $2='Admin' ORDER BY parent_id NULLS FIRST,name LIMIT 1001`, [user.id, user.role])).rows
+  if (rows.length > 1000) fail(413, 'Listado antiguo demasiado grande; usa categorías paginadas / Legacy list too large; use paginated categories')
+  return rows.map(c => ({ ...c, permissions: libraryPermissions(c, user) }))
 }
 
 export async function validateCategory(block, query = q, allowUncategorized = false, ownerId = null) {
@@ -73,6 +75,7 @@ export async function projectCategoryIcons(yaml, query = q) {
   const project = parseYaml(yaml)
   const slugs = [...new Set((project.nodes || []).flatMap(n => [n.block?.category, n.block?.subcategory]).filter(Boolean))]
   if (!slugs.length) return {}
+  if (slugs.length > 1000 || slugs.some(slug => typeof slug !== 'string' || Buffer.byteLength(slug) > 256)) fail(413, 'Contexto de iconos excesivo o inválido / Icon context too large or invalid')
   const { rows } = await query('SELECT slug,icon FROM block_categories WHERE slug=ANY($1::text[])', [slugs])
   return Object.fromEntries(rows.map(row => [row.slug, row.icon]))
 }

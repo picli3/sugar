@@ -15,6 +15,7 @@ export function registerProjectRoutes(app, projects) {
   app.post('/api/projects/:id/share', asyncRoute(async (req, res) => res.json(await projects.share(req.params.id, req.user))))
   app.delete('/api/projects/:id/share', asyncRoute(async (req, res) => { await projects.revokeShare(req.params.id, req.user); res.json({ ok: true }) }))
   app.get('/api/projects/:id/members', asyncRoute(async (req, res) => res.json(await projects.members(req.params.id, req.user))))
+  app.get('/api/projects/:id/category-icons', noStore, asyncRoute(async (req, res) => res.json(await projects.icons(req.params.id, req.user, req.query))))
   app.put('/api/projects/:id/members', asyncRoute(async (req, res) => res.json(await projects.setMember(req.params.id, req.user, req.body))))
   app.delete('/api/projects/:id/members/:userId', asyncRoute(async (req, res) => { await projects.removeMember(req.params.id, req.user, req.params.userId); res.json({ ok: true }) }))
   app.get('/api/projects/:id', asyncRoute(async (req, res) => res.json(await projects.get(req.params.id, req.user))))
