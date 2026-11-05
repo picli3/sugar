@@ -1,3 +1,4 @@
+import { person, people } from '../shared/identity.js'
 import crypto from 'node:crypto'
 import { error, requiredText } from '../shared/http.js'
 import { requireAdmin, requireEdit } from '../auth/policies.js'
@@ -35,11 +36,11 @@ export function createImageService(images, storage) {
       }
       await recordImageReferences(tx, kind, id, found.map(image => image.id))
     },
-    async list(user) { return (await images.list(user)).map(image => ({ ...image, url: `/api/images/${image.id}/content` })) },
+    async list(user) { return (await images.list(user)).map(image => ({ ...person(image, user, 'creator'), url: `/api/images/${image.id}/content` })) },
     async page(user, query) {
       const input = pageInput(query)
       const page = await images.page(user, input)
-      return pageResult(page.rows, input.limit, image => ({ ...image, url: `/api/images/${image.id}/content` }), page.more)
+      return pageResult(page.rows, input.limit, image => ({ ...person(image, user, 'creator'), url: `/api/images/${image.id}/content` }), page.more)
     },
     async create(user, input) {
       requireEdit(user)

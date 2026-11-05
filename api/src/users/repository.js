@@ -5,10 +5,11 @@ export function createUserRepository(query, transaction) {
       return (await query('SELECT * FROM users WHERE email=$1 AND active=true', [email])).rows[0]
     },
     async findActiveById(id) {
-      return (await query('SELECT id,email,role,language,theme FROM users WHERE id=$1 AND active=true', [id])).rows[0]
+      return (await query('SELECT id,email,role,language,theme,display_name FROM users WHERE id=$1 AND active=true', [id])).rows[0]
     },
-    async preferences(id, language, theme) {
-      return (await query('UPDATE users SET language=COALESCE($2,language),theme=COALESCE($3,theme) WHERE id=$1 RETURNING id,email,role,language,theme', [id, language, theme])).rows[0]
+    // `nameChanged` distinguishes clearing the public name (null) from leaving it untouched.
+    async preferences(id, language, theme, nameChanged = false, name = null) {
+      return (await query('UPDATE users SET language=COALESCE($2,language),theme=COALESCE($3,theme),display_name=CASE WHEN $4 THEN $5 ELSE display_name END WHERE id=$1 RETURNING id,email,role,language,theme,display_name', [id, language, theme, nameChanged, name])).rows[0]
     },
     async activePasswordHash(id) { return (await query('SELECT password_hash FROM users WHERE id=$1 AND active=true', [id])).rows[0]?.password_hash || null },
     async passwordHash(id) { return (await query('SELECT password_hash FROM users WHERE id=$1', [id])).rows[0].password_hash },

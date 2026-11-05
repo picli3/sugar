@@ -22,7 +22,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid',
     block_categories: 'id uuid,slug text,name text,name_key text,icon text',
     settings: 'key text,value jsonb', ai_quota_config: 'value jsonb', image_storage_config: 'value jsonb',
-    document_storage_config: 'value jsonb', users: 'email text,password_hash text,role text',
+    document_storage_config: 'value jsonb', users: 'email text,password_hash text,role text,display_name text',
     project_members: 'project_id uuid,user_id uuid,role text', user_sessions: 'id uuid,user_id uuid',
     image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',

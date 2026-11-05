@@ -15,7 +15,7 @@ test('MFA HTTP enrolls only confirmed Admins, withholds sessions until verificat
   await root.query('CREATE SCHEMA ' + schema)
   const db = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => db.query(sql, args)
   t.after(async () => { await db.end(); await root.query('DROP SCHEMA ' + schema + ' CASCADE'); await root.end() })
-  await q(`CREATE TABLE users(id uuid PRIMARY KEY,email text UNIQUE,role text,language text DEFAULT 'es',theme text DEFAULT 'light',active boolean DEFAULT true,password_hash text)`)
+  await q(`CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text UNIQUE,role text,language text DEFAULT 'es',theme text DEFAULT 'light',active boolean DEFAULT true,password_hash text)`)
   await initSessionDb(q)
   const id = crypto.randomUUID(), dev = crypto.randomUUID(), password = 'isolated-mfa-password', hash = await bcrypt.hash(password, 4), audit = []
   await q("INSERT INTO users(id,email,role,password_hash) VALUES($1,'admin@example.invalid','Admin',$3),($2,'dev@example.invalid','dev',$3)", [id, dev, hash])

@@ -108,7 +108,7 @@ test('ownership migration preserves legacy records, versions and diagram referen
   const transaction = createTransaction({ connect: async () => ({ query, release() {} }) })
   try {
     await query(`CREATE SCHEMA ${schema}`); await query(`SET search_path TO ${schema}`)
-    await query('CREATE TABLE users(id uuid PRIMARY KEY)')
+    await query('CREATE TABLE users(id uuid PRIMARY KEY,display_name text)')
     await query('CREATE TABLE blocks(id uuid PRIMARY KEY,name text,latest_version integer,deleted_at timestamptz)')
     await query('CREATE TABLE block_categories(id uuid PRIMARY KEY,slug text UNIQUE,name text,name_key text,parent_id uuid,deleted_at timestamptz)')
     await query(`CREATE UNIQUE INDEX block_categories_sibling_name ON block_categories(coalesce(parent_id,'00000000-0000-0000-0000-000000000000'::uuid),name_key) WHERE deleted_at IS NULL`)

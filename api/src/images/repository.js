@@ -1,3 +1,4 @@
+import { personColumns, personTextFields } from '../shared/identity.js'
 import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
 // All grants are evaluated against live project/library permissions, never URL secrecy.
 // Trashed images (deleted_at set) keep serving existing references until purged; only
@@ -18,7 +19,7 @@ export function createImageRepository(query) {
       return (await query(`SELECT i.mime,i.data FROM images i WHERE i.id=$1 AND EXISTS(SELECT 1 FROM image_references r JOIN projects p ON p.id=r.resource_id WHERE r.image_id=i.id AND r.resource_kind='project' AND r.current AND p.deleted_at IS NULL AND p.share_token=$2 AND p.share_expires_at>now())`, [id, token])).rows[0]
     },
     async list(user) {
-      return boundedLegacyList(query, `SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,u.email AS creator FROM images i LEFT JOIN users u ON u.id=i.created_by WHERE i.deleted_at IS NULL AND (i.scope='catalog' OR i.owner_id=$1 OR $2='Admin') ORDER BY i.created_at DESC,i.id DESC`, [user.id, user.role], { order: 'r.created_at DESC,r.id DESC', textFields: ['name','mime','scope','creator'] })
+      return boundedLegacyList(query, `SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,${personColumns('u', 'i.created_by', 'creator')} FROM images i LEFT JOIN users u ON u.id=i.created_by WHERE i.deleted_at IS NULL AND (i.scope='catalog' OR i.owner_id=$1 OR $2='Admin') ORDER BY i.created_at DESC,i.id DESC`, [user.id, user.role], { order: 'r.created_at DESC,r.id DESC', textFields: ['name','mime','scope',...personTextFields('creator')] })
     },
     async page(user, { limit, after }) {
       const values = [], bind = value => { values.push(value); return '$' + values.length }
@@ -28,10 +29,10 @@ export function createImageRepository(query) {
         WHERE i.deleted_at IS NULL ${filter} ${boundary} ORDER BY i.created_at DESC,i.id DESC LIMIT ${cap})`
       // Disjoint partial-index scans cap candidate metadata before joining creator data.
       const candidates = user.role === 'Admin' ? branch('') : branch(`AND i.owner_id=${bind(user.id)}::uuid AND i.scope<>'catalog'`) + ' UNION ALL ' + branch("AND i.scope='catalog'")
-      return boundedMetadataPage(query, `SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,u.email AS creator,
+      return boundedMetadataPage(query, `SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,${personColumns('u', 'i.created_by', 'creator')},
         to_char(i.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
         FROM (${candidates}) i LEFT JOIN users u ON u.id=i.created_by
-        ORDER BY i.created_at DESC,i.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'mime', 'scope', 'creator'], limit })
+        ORDER BY i.created_at DESC,i.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'mime', 'scope', ...personTextFields('creator')], limit })
     },
     async create(id, name, mime, bytes, authorId, ownerId, scope, execute = query) {
       await execute('INSERT INTO images(id,name,mime,data,created_by,owner_id,scope) VALUES($1,$2,$3,$4,$5,$6,$7)', [id, name, mime, bytes, authorId, ownerId, scope])

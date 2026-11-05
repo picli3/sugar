@@ -11,7 +11,7 @@ test('project pages preserve owner/public/member/Admin boundaries with disjoint 
   await admin.query('CREATE SCHEMA ' + schema)
   const pool = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => pool.query(sql, args)
   t.after(async () => { await pool.end(); await admin.query('DROP SCHEMA ' + schema + ' CASCADE'); await admin.end() })
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,created_at timestamptz,visibility text,created_by uuid,sync_repository text,sync_branch text,settings_version int,deleted_at timestamptz,yaml text,share_token text)')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text,PRIMARY KEY(project_id,user_id))')
   await q('CREATE INDEX project_members_user ON project_members(user_id,project_id)')

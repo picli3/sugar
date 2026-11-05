@@ -22,7 +22,7 @@ test('document quotas coordinate content writes, charge owners, retain history a
   await admin.query('CREATE SCHEMA '+schema)
   const pool=new pg.Pool({connectionString:url,options:'-c search_path='+schema}),q=(sql,args)=>pool.query(sql,args),transaction=createTransaction(pool)
   t.after(async()=>{await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end()})
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q("CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,yaml text,created_by uuid,visibility text DEFAULT 'private',deleted_at timestamptz,created_at timestamptz DEFAULT now(),sync_repository text,sync_branch text DEFAULT 'main',settings_version int DEFAULT 1)")
   await q('CREATE TABLE project_revisions(project_id uuid,revision int,yaml text,summary text,author_id uuid,created_at timestamptz DEFAULT now(),PRIMARY KEY(project_id,revision))')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text,PRIMARY KEY(project_id,user_id))')

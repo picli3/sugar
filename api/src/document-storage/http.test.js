@@ -7,7 +7,7 @@ test('document capacity is Admin-only and personal summaries cannot select anoth
   const id='11111111-1111-1111-1111-111111111111',sid='22222222-2222-2222-2222-222222222222',secret='synthetic-document-storage-secret'
   let role='view',reads=0
   const q=async(sql,args)=>{
-    if(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions'))return{rows:[{id,role,email:'fixture@example.invalid',language:'en',theme:'light'}]}
+    if(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions'))return{rows:[{id,role,email:'fixture@example.invalid',language:'en',theme:'light'}]}
     reads++
     if(sql.startsWith('SELECT value,version FROM document_storage_config'))return{rows:[{value:defaultDocumentStorage,version:1}]}
     assert.ok(sql.startsWith('SELECT count(*) FILTER'));assert.ok(!args.length||args[0]===id)

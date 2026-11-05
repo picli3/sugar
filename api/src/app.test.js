@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 import { createApp } from './app.js'
 
 const user = { id: '11111111-1111-1111-1111-111111111111', email: 'admin@local', role: 'Admin', language: 'es', theme: 'light' }
-const project = { id: 'p', created_by: user.id, visibility: 'public', name: 'Public', yaml: 'name: Public\nnodes: []\nedges: []\n', revision: 1, creator: user.email, share_token: 'not-public', sync_repository: 'private/repo' }
+const project = { id: 'p', created_by: user.id, visibility: 'public', name: 'Public', yaml: 'name: Public\nnodes: []\nedges: []\n', revision: 1, creator_id: user.id, creator_name: null, creator_email: user.email, share_token: 'not-public', sync_repository: 'private/repo' }
 
 test('constructing the application does not listen, initialize DB or start timers/workers', () => {
   const script = `
@@ -35,7 +35,7 @@ test('HTTP contracts retain public routes, session cookies, authentication and e
     if (sql.startsWith('SELECT auth_version')) return { rows: [{ auth_version: 0 }] }
     if (sql.startsWith('INSERT INTO user_sessions')) return { rows: [] }
     if (sql.startsWith('UPDATE user_sessions')) return { rowCount: 1, rows: [] }
-    if (sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions')) return { rows: [user] }
+    if (sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions')) return { rows: [user] }
     if (sql.startsWith('SELECT id,email,role,language,theme')) return { rows: params[0] === user.id ? [user] : [] }
     if (sql.includes("p.visibility='public'")) return { rows: params[0] === 'p' ? [project] : [] }
     if (sql.startsWith('SELECT mime,data')) return { rows: [{ mime: 'image/png', data: Buffer.from('test-image') }] }
@@ -55,7 +55,8 @@ test('HTTP contracts retain public routes, session cookies, authentication and e
   res = await request('/me'); assert.equal(res.status, 401); assert.deepEqual(await res.json(), { error: 'Sesión requerida' })
   res = await request('/me', null, 'session=invalid'); assert.equal(res.status, 401)
   res = await request('/public/projects/p'); assert.equal(res.status, 200)
-  assert.deepEqual(await res.json(), { id: 'p', name: project.name, yaml: project.yaml, revision: 1, creator: user.email, visibility: 'public', category_icons: {} })
+  // Public readers never receive the creator's private email (#24).
+  assert.deepEqual(await res.json(), { id: 'p', name: project.name, yaml: project.yaml, revision: 1, creator: null, visibility: 'public', category_icons: {} })
   res = await request('/public/projects/missing'); assert.equal(res.status, 404); assert.deepEqual(await res.json(), { error: 'Proyecto público no encontrado' })
   res = await request('/shared/invalid'); assert.equal(res.status, 404)
   res = await request('/images/i/content'); assert.equal(res.status, 404); assert.equal(res.headers.get('cache-control'), 'private, no-store')

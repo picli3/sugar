@@ -13,7 +13,7 @@ test('analysis pages preserve microsecond ties, whole metadata, live ACL and leg
   await admin.query('CREATE SCHEMA ' + schema)
   const pool = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), statements = [], q = (sql, args) => { statements.push(sql); return pool.query(sql, args) }
   t.after(async () => { await pool.end(); await admin.query('DROP SCHEMA ' + schema + ' CASCADE'); await admin.end() })
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q("CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,yaml text,visibility text,created_by uuid,sync_repository text,sync_branch text,settings_version int,created_at timestamptz,deleted_at timestamptz)")
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text)')
   await initAiDb(q); await initAiDb(q)

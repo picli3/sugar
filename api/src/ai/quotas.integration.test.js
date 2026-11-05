@@ -16,7 +16,7 @@ test('AI budgets, durable claims and replicas share atomic PostgreSQL reservatio
   t.after(async () => { await pool.end(); await second.end(); await root.query(`DROP SCHEMA ${schema} CASCADE`); await root.end() })
   const q = (sql, args) => pool.query(sql, args), transaction = createTransaction(pool), quotas = createAiQuotas({ q, transaction }), replica = createAiQuotas({ q: (sql, args) => second.query(sql, args), transaction: createTransaction(second) })
   const a = crypto.randomUUID(), b = crypto.randomUUID(), p = crypto.randomUUID()
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)'); await q('INSERT INTO users VALUES($1,$2),($3,$4)', [a,'quota-a@local',b,'quota-b@local'])
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)'); await q('INSERT INTO users VALUES($1,$2),($3,$4)', [a,'quota-a@local',b,'quota-b@local'])
   await q('CREATE TABLE projects(id uuid PRIMARY KEY)'); await q('INSERT INTO projects VALUES($1)', [p])
   await q('CREATE TABLE settings(key text PRIMARY KEY,value jsonb)')
   await initAiDb(q)

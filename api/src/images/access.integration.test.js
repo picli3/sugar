@@ -140,7 +140,7 @@ test('image migration preserves legacy bytes, ownership, historical grants and c
   const transaction = createTransaction({ connect: async () => ({ query, release() {} }) })
   try {
     await query(`CREATE SCHEMA ${schema}`); await query(`SET search_path TO ${schema}`)
-    await query('CREATE TABLE users(id uuid PRIMARY KEY)')
+    await query('CREATE TABLE users(id uuid PRIMARY KEY,display_name text)')
     await query('CREATE TABLE images(id uuid PRIMARY KEY,name text,mime text,data bytea,created_by uuid REFERENCES users(id),deleted_at timestamptz)')
     await query('CREATE TABLE projects(id uuid PRIMARY KEY,revision integer,share_token text)')
     await query('CREATE TABLE blocks(id uuid PRIMARY KEY,latest_version integer)')

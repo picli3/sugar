@@ -1,3 +1,4 @@
+import { person, people } from '../shared/identity.js'
 import crypto from 'node:crypto'
 import { documentDiff } from '../shared/document-diff.js'
 import { error, requiredText } from '../shared/http.js'
@@ -39,12 +40,12 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
       })
       return { id, version: 1 }
     },
-    versions: async (id, user) => { await get(id, user); return blocks.versions(id) },
+    versions: async (id, user) => { await get(id, user); return people(await blocks.versions(id), user, 'author') },
     async versionsPage(id, user, query) {
       await get(id, user)
       const options = revisionPageInput(query)
       const page = await blocks.versionsPage(id, options)
-      return revisionPageResult(page.rows, options.limit, 'version', page.more)
+      return revisionPageResult(people(page.rows, user, 'author'), options.limit, 'version', page.more)
     },
     async version(id, version, user) {
       await get(id, user)

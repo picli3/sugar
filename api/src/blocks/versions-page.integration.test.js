@@ -10,7 +10,7 @@ test('block version pages enforce live library access, integer boundaries and me
   await admin.query('CREATE SCHEMA ' + schema)
   const pool = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), statements = [], q = (sql,args) => { statements.push(sql); return pool.query(sql,args) }
   t.after(async () => { await pool.end(); await admin.query('DROP SCHEMA ' + schema + ' CASCADE'); await admin.end() })
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE blocks(id uuid PRIMARY KEY,owner_id uuid,deleted_at timestamptz)')
   await q('CREATE TABLE block_versions(block_id uuid,version int,summary text,created_at timestamptz DEFAULT now(),author_id uuid,yaml text,PRIMARY KEY(block_id,version))')
   const a={id:crypto.randomUUID(),role:'dev'}, b={id:crypto.randomUUID(),role:'view'}, adminUser={id:crypto.randomUUID(),role:'Admin'}, block=crypto.randomUUID(), catalog=crypto.randomUUID(), foreign=crypto.randomUUID()

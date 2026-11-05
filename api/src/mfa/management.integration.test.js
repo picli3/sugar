@@ -16,7 +16,7 @@ test('MFA regeneration and disabling require current password/session/factor and
   await root.query('CREATE SCHEMA ' + schema)
   const db = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => db.query(sql, args)
   t.after(async () => { await db.end(); await root.query('DROP SCHEMA ' + schema + ' CASCADE'); await root.end() })
-  await q(`CREATE TABLE users(id uuid PRIMARY KEY,email text,role text DEFAULT 'Admin',language text DEFAULT 'es',theme text DEFAULT 'light',active boolean DEFAULT true,password_hash text)`)
+  await q(`CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text,role text DEFAULT 'Admin',language text DEFAULT 'es',theme text DEFAULT 'light',active boolean DEFAULT true,password_hash text)`)
   await initSessionDb(q)
   const transaction = createTransaction(db), sessions = createSessionRepository(q, transaction), box = createSecretBox('08'.repeat(32)), noKey = createSecretBox(undefined)
   const id = crypto.randomUUID(), other = crypto.randomUUID(), sid = crypto.randomUUID(), copy = crypto.randomUUID(), otherSid = crypto.randomUUID(), hash = 'synthetic-rechecked-password-hash', codes = generateRecoveryCodes(id)

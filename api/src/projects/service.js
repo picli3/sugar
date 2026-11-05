@@ -1,3 +1,4 @@
+import { person, people } from '../shared/identity.js'
 import crypto from 'node:crypto'
 import { documentDiff } from '../shared/document-diff.js'
 import { error, requiredText } from '../shared/http.js'
@@ -9,10 +10,11 @@ import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPag
 export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {} }) {
   const get = async (id, user, options, tx, lock = false) => {
     const project = requireProjectAccess(await projects.find(id, user.id, tx, lock), user, options)
-    return { ...project, permissions: projectPermissions(project, user) }
+    return person({ ...project, permissions: projectPermissions(project, user) }, user, 'creator')
   }
   const publicResult = async project => {
-    const { id, name, yaml, revision, creator, visibility } = project
+    // Anonymous and link readers only ever see the optional public name.
+    const { id, name, yaml, revision, creator, visibility } = person(project, null, 'creator')
     return { id, name, yaml, revision, creator, visibility, category_icons: await categoryIcons(yaml) }
   }
   const write = (id, action) => storage ? storage.write('project', id, action) : transaction(action)
@@ -24,11 +26,11 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       if (base !== undefined && Number(base) !== project.revision) error(409, 'El proyecto cambió; recarga para actualizar sus iconos / Project changed; reload to update its icons')
       return categoryIcons(project.yaml)
     },
-    list: user => projects.list(user),
+    list: async user => people(await projects.list(user), user, 'creator'),
     async page(user, query) {
       const input = pageInput(query)
       const page = await projects.page(user, input)
-      return pageResult(page.rows, input.limit, item => item, page.more)
+      return pageResult(page.rows, input.limit, item => person(item, user, 'creator'), page.more)
     },
     async public(id) {
       const project = await projects.public(id)
@@ -103,12 +105,12 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       }
       return get(id, user)
     },
-    async settingsHistory(id, user) { await get(id, user); return projects.settingsHistory(id) },
+    async settingsHistory(id, user) { await get(id, user); return people(await projects.settingsHistory(id), user, 'author') },
     async settingsHistoryPage(id, user, query) {
       requireProjectAccess(await projects.access(id, user.id), user)
       const input = bigintPageInput(query)
       const page = await projects.settingsHistoryPage(id, input)
-      return identifierPageResult(page.rows, input.limit, item => item, page.more)
+      return identifierPageResult(page.rows, input.limit, item => person(item, user, 'author'), page.more)
     },
     async share(id, user) {
       const project = await get(id, user, { ownerOnly: true })
@@ -134,12 +136,12 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       })
       return { revision }
     },
-    async revisions(id, user) { await get(id, user); return projects.revisions(id) },
+    async revisions(id, user) { await get(id, user); return people(await projects.revisions(id), user, 'author') },
     async revisionsPage(id, user, query) {
       requireProjectAccess(await projects.access(id, user.id), user)
       const input = revisionPageInput(query)
       const page = await projects.revisionsPage(id, input)
-      return revisionPageResult(page.rows, input.limit, 'revision', page.more)
+      return revisionPageResult(people(page.rows, user, 'author'), input.limit, 'revision', page.more)
     },
     async revision(id, user, revision) {
       await get(id, user)

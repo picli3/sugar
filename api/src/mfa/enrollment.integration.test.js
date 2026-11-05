@@ -15,7 +15,7 @@ test('confirmed MFA enrollment preserves only its current session and closes pas
   await root.query('CREATE SCHEMA ' + schema)
   const db = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => db.query(sql, args)
   t.after(async () => { await db.end(); await root.query('DROP SCHEMA ' + schema + ' CASCADE'); await root.end() })
-  await q(`CREATE TABLE users(id uuid PRIMARY KEY,email text,role text,language text DEFAULT 'es',theme text DEFAULT 'light',active boolean DEFAULT true,password_hash text)`)
+  await q(`CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text,role text,language text DEFAULT 'es',theme text DEFAULT 'light',active boolean DEFAULT true,password_hash text)`)
   await initSessionDb(q); await initSessionDb(q)
   const transaction = createTransaction(db), sessions = createSessionRepository(q, transaction), box = createSecretBox('07'.repeat(32)), enrollment = createMfaEnrollment({ transaction, secretBox: box })
   const hash = 'synthetic-prechecked-password-hash', expires = new Date(Date.now() + 60 * 60 * 1000)

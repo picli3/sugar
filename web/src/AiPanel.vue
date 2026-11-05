@@ -58,7 +58,7 @@ async function more() { error.value = ''; try { await pages.more() } catch(e) { 
     <article v-if="current" class="ai-result" :aria-label="t('aiSnapshot')">
       <p v-if="stale" class="message error">{{ t('aiStale') }}</p>
       <h3>{{ current.action === 'analyze' ? t('aiAnalyze') : t('aiRecommend') }}</h3>
-      <p class="hint">{{ new Date(current.created_at).toLocaleString(language) }} · {{ current.author }}<br>{{ current.provider }} / {{ current.model }} · {{ t('aiBase') }} {{ current.base_revision }}<br>{{ t('aiSnapshot') }}: {{ current.snapshot_hash.slice(0,12) }}</p>
+      <p class="hint">{{ new Date(current.created_at).toLocaleString(language) }} · {{ current.author || t('aiSugarUser') }}<br>{{ current.provider }} / {{ current.model }} · {{ t('aiBase') }} {{ current.base_revision }}<br>{{ t('aiSnapshot') }}: {{ current.snapshot_hash.slice(0,12) }}</p>
       <p v-if="current.focus" class="hint">{{ t('aiFocus') }}: {{ current.focus }}</p>
       <p class="ai-response">{{ current.response }}</p>
       <p class="hint">{{ t('aiCaution') }}</p>
@@ -67,7 +67,7 @@ async function more() { error.value = ''; try { await pages.more() } catch(e) { 
     </article>
     <div class="section-heading"><h3>{{ t('aiHistory') }}</h3><button class="link-button" :disabled="loading" @click="refresh">{{ t('aiReload') }}</button></div>
     <p v-if="!items.length && !loading" class="hint">{{ t('aiNoHistory') }}</p>
-    <button v-for="item in items" :key="item.id" class="ai-history-item" :class="{ chosen: current?.id === item.id }" :disabled="loading || detailLoading" @click="select(item.id)"><strong>{{ item.action === 'analyze' ? t('aiAnalyze') : t('aiRecommend') }} · v{{ item.base_revision }}</strong><small>{{ new Date(item.created_at).toLocaleString(language) }} · {{ item.author }}</small><span v-if="item.focus">{{ item.focus }}</span></button>
+    <button v-for="item in items" :key="item.id" class="ai-history-item" :class="{ chosen: current?.id === item.id }" :disabled="loading || detailLoading" @click="select(item.id)"><strong>{{ item.action === 'analyze' ? t('aiAnalyze') : t('aiRecommend') }} · v{{ item.base_revision }}</strong><small>{{ new Date(item.created_at).toLocaleString(language) }} · {{ item.author || t('aiSugarUser') }}</small><span v-if="item.focus">{{ item.focus }}</span></button>
     <p class="hint" role="status">{{ t('aiHistoryLoaded').replace('{count}', String(items.length)) }}</p>
     <button v-if="cursor" class="secondary wide" :disabled="loading" @click="more">{{ t('aiMore') }}</button>
   </div>

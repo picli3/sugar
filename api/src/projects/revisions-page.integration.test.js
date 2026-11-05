@@ -10,7 +10,7 @@ test('revision metadata pages enforce live project access, stable integer bounda
   await admin.query('CREATE SCHEMA ' + schema)
   const pool = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), statements = [], q = (sql,args) => { statements.push(sql); return pool.query(sql,args) }
   t.after(async () => { await pool.end(); await admin.query('DROP SCHEMA ' + schema + ' CASCADE'); await admin.end() })
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,created_by uuid,visibility text,deleted_at timestamptz,yaml text)')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text,PRIMARY KEY(project_id,user_id))')
   await q('CREATE TABLE project_revisions(project_id uuid,revision int,summary text,created_at timestamptz DEFAULT now(),author_id uuid,yaml text,PRIMARY KEY(project_id,revision))')

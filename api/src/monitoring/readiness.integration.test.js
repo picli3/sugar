@@ -35,7 +35,7 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
     project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
     sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid',
     block_categories: 'slug text,name text,name_key text,icon text', ai_quota_config: 'value jsonb',
-    users: 'id uuid PRIMARY KEY,email text,password_hash text,role text', project_members: 'project_id uuid,user_id uuid,role text',
+    users: 'id uuid PRIMARY KEY,email text,password_hash text,role text,display_name text', project_members: 'project_id uuid,user_id uuid,role text',
     user_sessions: 'id uuid,user_id uuid', image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',

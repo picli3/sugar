@@ -37,7 +37,7 @@ export function createSessionRepository(query, transaction) {
       return true
     },
     async user(id, userId) {
-      return (await query(`SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true AND u.auth_version=s.auth_version AND (s.mfa_verified OR NOT EXISTS(SELECT 1 FROM mfa_credentials m WHERE m.user_id=u.id AND m.enabled))`, [id, userId])).rows[0]
+      return (await query(`SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.active=true AND u.auth_version=s.auth_version AND (s.mfa_verified OR NOT EXISTS(SELECT 1 FROM mfa_credentials m WHERE m.user_id=u.id AND m.enabled))`, [id, userId])).rows[0]
     },
     async revoke(id, userId) { return (await query('UPDATE user_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE id=$1 AND user_id=$2', [id, userId])).rowCount },
     async list(userId, currentId) {

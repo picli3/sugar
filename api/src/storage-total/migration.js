@@ -18,7 +18,7 @@ export const usageSql = `SELECT
     +(SELECT COALESCE(sum(octet_length(value::text)),0) FROM ai_quota_config)
     +(SELECT COALESCE(sum(octet_length(value::text)),0) FROM image_storage_config)
     +(SELECT COALESCE(sum(octet_length(value::text)),0) FROM document_storage_config)
-    +(SELECT COALESCE(sum(octet_length(email)::bigint+octet_length(password_hash)+octet_length(role)),0) FROM users)
+    +(SELECT COALESCE(sum(octet_length(email)::bigint+octet_length(password_hash)+octet_length(role)+COALESCE(octet_length(display_name),0)),0) FROM users)
     +(SELECT COALESCE(sum(octet_length(project_id::text)::bigint+octet_length(user_id::text)+octet_length(role)),0) FROM project_members)
     +(SELECT COALESCE(sum(octet_length(id::text)::bigint+octet_length(user_id::text)),0) FROM user_sessions)
     +(SELECT COALESCE(sum(octet_length(image_id::text)::bigint+octet_length(resource_kind)+octet_length(resource_id::text)),0) FROM image_references)
@@ -40,7 +40,7 @@ const sizes = {
   block_categories: ['slug','name','name_key','icon'].map(textBytes),
   settings: [textBytes('key'),jsonBytes('value')],
   ai_quota_config: [jsonBytes('value')], image_storage_config: [jsonBytes('value')],
-  document_storage_config: [jsonBytes('value')], users: ['email','password_hash','role'].map(textBytes),
+  document_storage_config: [jsonBytes('value')], users: ['email','password_hash','role','display_name'].map(textBytes),
   project_members: ['project_id','user_id','role'].map(textBytes), user_sessions: ['id','user_id'].map(textBytes),
   image_references: ['image_id','resource_kind','resource_id'].map(textBytes),
   pending_registrations: ['email','token_hash','language'].map(textBytes),

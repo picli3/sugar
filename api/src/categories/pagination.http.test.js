@@ -8,7 +8,7 @@ test('category context rejects oversized/malformed input before queries and requ
   for(const input of [null,{}, {slugs:Array(65).fill('fixture')},{slugs:['a'.repeat(257)]},{slugs:['*']},{slugs:['fixture'],userId:'other'},{slugs:[1]}])await assert.rejects(service.resolve(user,input),{status:400})
   assert.deepEqual(await service.resolve(user,{slugs:[]}),[])
   const id='11111111-1111-1111-1111-111111111111',sid='22222222-2222-2222-2222-222222222222',secret='synthetic-category-context-secret'
-  const q=async text=>{assert.ok(text.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions'));return{rows:[{id,role:'view',email:'fixture@example.invalid',theme:'light',language:'en'}]}}
+  const q=async text=>{assert.ok(text.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions'));return{rows:[{id,role:'view',email:'fixture@example.invalid',theme:'light',language:'en'}]}}
   const app=createApp({q,secret,registrationConfig:{enabled:false},recoveryConfig:{enabled:false}}),server=app.listen(0,'127.0.0.1')
   await new Promise(resolve=>server.once('listening',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)))
   const base=`http://127.0.0.1:${server.address().port}/api`,cookie='session='+jwt.sign({id,sid},secret,{expiresIn:60})

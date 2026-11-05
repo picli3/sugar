@@ -7,7 +7,7 @@ test('history page routes require sessions, use page handlers and disable cachin
   const id='11111111-1111-1111-1111-111111111111', sid='22222222-2222-2222-2222-222222222222', secret='synthetic-history-page-secret'
   let historyReads=0,allowed=true
   const q=async sql => {
-    if(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions'))return {rows:[{id,role:'dev',email:'fixture@example.invalid',language:'es',theme:'light'}]}
+    if(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions'))return {rows:[{id,role:'dev',email:'fixture@example.invalid',language:'es',theme:'light'}]}
     if(sql.startsWith('SELECT id,owner_id FROM blocks'))return {rows:allowed?[{id,owner_id:id}]:[]}
     if(sql.startsWith('SELECT p.id,p.created_by,p.visibility,m.role'))return {rows:allowed?[{id,created_by:id,visibility:'private'}]:[]}
     if(sql.includes('FROM block_versions v')||sql.includes('FROM project_revisions r')||sql.includes('FROM project_settings_history h')){historyReads++;return {rows:[{items:[],more:false,oversized:false}]}}

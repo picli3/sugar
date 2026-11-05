@@ -7,7 +7,7 @@ test('gallery pages require a live session and reject invalid pagination before 
   const id = '11111111-1111-1111-1111-111111111111', sid = '22222222-2222-2222-2222-222222222222', secret = 'synthetic-gallery-page-secret'
   let lookups = 0
   const q = async sql => {
-    assert.ok(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions'))
+    assert.ok(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions'))
     lookups++; return { rows: [{ id, role: 'view', email: 'fixture@example.invalid', language: 'es', theme: 'light' }] }
   }
   const app = createApp({ q, secret, registrationConfig: { enabled: false }, recoveryConfig: { enabled: false } })

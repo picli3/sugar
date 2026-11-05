@@ -34,7 +34,7 @@ test('category pages and bounded context respect owners/parents, while project i
   const first=await service.page(a,{limit:'1'});await q('UPDATE block_categories SET owner_id=$2 WHERE id=$1',[id(4),b.id])
   assert.ok((await service.page(a,{cursor:first.nextCursor})).items.every(row=>row.id!==id(4)))
   assert.deepEqual(await service.resolve(a,{slugs:['cat-4']}),[])
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,yaml text,visibility text,created_by uuid,sync_repository text,sync_branch text,settings_version int,created_at timestamptz,deleted_at timestamptz)')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text)')
   const p=crypto.randomUUID();await q("INSERT INTO projects VALUES($1,'Fixture',7,$2,'private',$3,NULL,'main',1,now(),NULL)",[p,'nodes:\n  - block:\n      category: cat-93\n      subcategory: cat-3\n',a.id])

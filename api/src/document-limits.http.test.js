@@ -5,7 +5,7 @@ import { createApp } from './app.js'
 import { documentLimits, stringify } from './model.js'
 test('document limits are session-protected, displayed authoritatively and enforced before persistence', async t=>{
   const id='11111111-1111-1111-1111-111111111111',sid='22222222-2222-2222-2222-222222222222',secret='synthetic-document-limits-secret'
-  const q=async sql=>{assert.ok(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions'));return{rows:[{id,role:'dev',email:'fixture@example.invalid',language:'en',theme:'light'}]}}
+  const q=async sql=>{assert.ok(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme,u.display_name FROM user_sessions'));return{rows:[{id,role:'dev',email:'fixture@example.invalid',language:'en',theme:'light'}]}}
   const app=createApp({q,secret,transaction:()=>{throw Error('Unexpected write')},registrationConfig:{enabled:false},recoveryConfig:{enabled:false}}),server=app.listen(0,'127.0.0.1')
   await new Promise(resolve=>server.once('listening',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)))
   const base=`http://127.0.0.1:${server.address().port}/api`,cookie='session='+jwt.sign({id,sid},secret,{expiresIn:60})

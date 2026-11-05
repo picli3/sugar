@@ -16,7 +16,7 @@ test('category metadata admits atomically by owner/platform bytes and retains ar
   await admin.query('CREATE SCHEMA ' + schema)
   const pool = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => pool.query(sql, args), transaction = createTransaction(pool)
   t.after(async () => { await pool.end(); await admin.query('DROP SCHEMA ' + schema + ' CASCADE'); await admin.end() })
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,name text,yaml text,created_by uuid)')
   await q('CREATE TABLE blocks(id uuid PRIMARY KEY,name text,owner_id uuid,category_slug text,subcategory_slug text,deleted_at timestamptz)')
   await q('CREATE TABLE project_revisions(project_id uuid,revision int,yaml text,summary text)')

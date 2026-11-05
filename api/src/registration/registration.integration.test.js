@@ -17,7 +17,7 @@ test('registration with a simulated mailbox persists verification, expiry, singl
   await admin.query('CREATE SCHEMA ' + schema)
   const pool = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => pool.query(sql, args), transaction = createTransaction(pool)
   t.after(async () => { await pool.end(); await admin.query('DROP SCHEMA ' + schema + ' CASCADE'); await admin.end() })
-  await q(`CREATE TABLE users(id uuid PRIMARY KEY,email text UNIQUE NOT NULL,password_hash text NOT NULL,role text NOT NULL CHECK(role IN ('view','dev','Admin')),language text NOT NULL DEFAULT 'es',theme text NOT NULL DEFAULT 'light',active boolean NOT NULL DEFAULT true,created_at timestamptz NOT NULL DEFAULT now())`)
+  await q(`CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text UNIQUE NOT NULL,password_hash text NOT NULL,role text NOT NULL CHECK(role IN ('view','dev','Admin')),language text NOT NULL DEFAULT 'es',theme text NOT NULL DEFAULT 'light',active boolean NOT NULL DEFAULT true,created_at timestamptz NOT NULL DEFAULT now())`)
   await initSessionDb(q); await initRegistrationDb(q); await initRegistrationDb(q)
   const emails = [], config = { enabled: true, origin: 'https://example.invalid' }, repository = createRegistrationRepository(q, transaction)
   await q('CREATE TABLE settings(key text PRIMARY KEY,value jsonb NOT NULL)')

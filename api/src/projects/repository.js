@@ -1,5 +1,6 @@
+import { personColumns, personTextFields } from '../shared/identity.js'
 import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
-const fields = 'p.id,p.name,p.revision,p.yaml,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,p.created_at,u.email AS creator'
+const fields = `p.id,p.name,p.revision,p.yaml,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,p.created_at,${personColumns('u', 'p.created_by', 'creator')}`
 const join = 'FROM projects p LEFT JOIN users u ON u.id=p.created_by'
 
 // Every write participating in a transaction receives that transaction's query function.
@@ -13,7 +14,7 @@ export function createProjectRepository(query) {
     async public(id) { return (await query(`SELECT ${fields} ${join} WHERE p.id=$1 AND p.visibility='public' AND p.deleted_at IS NULL`, [id])).rows[0] },
     async shared(token) { return (await query(`SELECT ${fields} ${join} WHERE p.share_token=$1 AND p.share_expires_at>now() AND p.deleted_at IS NULL`, [token])).rows[0] },
     async list(user) {
-      return boundedLegacyList(query, `SELECT p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,u.email AS creator ${join} LEFT JOIN project_members m ON m.project_id=p.id AND m.user_id=$1 WHERE p.deleted_at IS NULL AND (p.visibility='public' OR p.created_by=$1 OR $2='Admin' OR m.user_id IS NOT NULL) ORDER BY p.name,p.id`, [user.id, user.role], { order: 'r.name,r.id', textFields: ['name','visibility','sync_repository','sync_branch','creator'] })
+      return boundedLegacyList(query, `SELECT p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,${personColumns('u', 'p.created_by', 'creator')} ${join} LEFT JOIN project_members m ON m.project_id=p.id AND m.user_id=$1 WHERE p.deleted_at IS NULL AND (p.visibility='public' OR p.created_by=$1 OR $2='Admin' OR m.user_id IS NOT NULL) ORDER BY p.name,p.id`, [user.id, user.role], { order: 'r.name,r.id', textFields: ['name','visibility','sync_repository','sync_branch',...personTextFields('creator')] })
     },
     async access(id, userId) {
       return (await query(`SELECT p.id,p.created_by,p.visibility,m.role AS member_role FROM projects p
@@ -33,9 +34,9 @@ export function createProjectRepository(query) {
           branch(`AND p.visibility='public' AND p.created_by IS DISTINCT FROM ${owner}`) + ' UNION ALL ' +
           branch(`AND p.visibility<>'public' AND p.created_by IS DISTINCT FROM ${owner}`, `JOIN project_members m ON m.project_id=p.id AND m.user_id=${owner}`)
       }
-      return boundedMetadataPage(query, `SELECT p.*,u.email AS creator,
+      return boundedMetadataPage(query, `SELECT p.*,${personColumns('u', 'p.created_by', 'creator')},
         to_char(p.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
-        FROM (${candidates}) p LEFT JOIN users u ON u.id=p.created_by ORDER BY p.created_at DESC,p.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'visibility', 'sync_repository', 'sync_branch', 'creator'], limit })
+        FROM (${candidates}) p LEFT JOIN users u ON u.id=p.created_by ORDER BY p.created_at DESC,p.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'visibility', 'sync_repository', 'sync_branch', ...personTextFields('creator')], limit })
     },
     async members(id) {
       return boundedLegacyList(query, 'SELECT m.user_id,u.email,m.role,u.active FROM project_members m JOIN users u ON u.id=m.user_id WHERE m.project_id=$1 ORDER BY u.email,m.user_id', [id], { order: 'r.email,r.user_id', textFields: ['email','role'] })
@@ -69,28 +70,28 @@ export function createProjectRepository(query) {
       await tx("UPDATE sync_jobs SET status='skipped',error='Destino de sincronización cambiado' WHERE kind='project' AND record_id=$1 AND status='pending'", [id])
     },
     async settingsHistory(id) {
-      return boundedLegacyList(query, 'SELECT h.id::text AS _legacy_id,h.before,h.after,h.created_at,u.email AS author FROM project_settings_history h LEFT JOIN users u ON u.id=h.author_id WHERE h.project_id=$1 ORDER BY h.id DESC', [id], { order: 'r._legacy_id::bigint DESC', textFields: ['before','after','author'] })
+      return boundedLegacyList(query, `SELECT h.id::text AS _legacy_id,h.before,h.after,h.created_at,${personColumns('u', 'h.author_id', 'author')} FROM project_settings_history h LEFT JOIN users u ON u.id=h.author_id WHERE h.project_id=$1 ORDER BY h.id DESC`, [id], { order: 'r._legacy_id::bigint DESC', textFields: ['before','after',...personTextFields('author')] })
     },
     async settingsHistoryPage(id, { limit, before }) {
       const args = [id], boundary = before === null ? '' : 'AND h.id<$2::bigint'
       if (before !== null) args.push(before)
       args.push(limit + 1)
-      return boundedMetadataPage(query, `SELECT h.id::text AS id,h.before,h.after,h.created_at,u.email AS author FROM project_settings_history h
-        LEFT JOIN users u ON u.id=h.author_id WHERE h.project_id=$1 ${boundary} ORDER BY h.id DESC LIMIT $${args.length}`, args, { order: 'r.id::bigint DESC', textFields: ['before', 'after', 'author'], limit })
+      return boundedMetadataPage(query, `SELECT h.id::text AS id,h.before,h.after,h.created_at,${personColumns('u', 'h.author_id', 'author')} FROM project_settings_history h
+        LEFT JOIN users u ON u.id=h.author_id WHERE h.project_id=$1 ${boundary} ORDER BY h.id DESC LIMIT $${args.length}`, args, { order: 'r.id::bigint DESC', textFields: ['before', 'after', ...personTextFields('author')], limit })
     },
     async share(id, token) {
       return (await query(`UPDATE projects SET share_token=CASE WHEN share_expires_at>now() AND share_token IS NOT NULL THEN share_token ELSE $2 END,share_expires_at=CASE WHEN share_expires_at>now() AND share_token IS NOT NULL THEN share_expires_at ELSE now()+interval '7 days' END WHERE id=$1 AND deleted_at IS NULL RETURNING share_token,share_expires_at`, [id, token])).rows[0]
     },
     async revokeShare(id) { await query('UPDATE projects SET share_token=NULL,share_expires_at=NULL WHERE id=$1', [id]) },
     async revisions(id) {
-      return boundedLegacyList(query, 'SELECT r.revision,r.summary,r.created_at,u.email AS author FROM project_revisions r LEFT JOIN users u ON u.id=r.author_id WHERE project_id=$1 ORDER BY revision DESC', [id], { order: 'r.revision DESC', textFields: ['summary','author'] })
+      return boundedLegacyList(query, `SELECT r.revision,r.summary,r.created_at,${personColumns('u', 'r.author_id', 'author')} FROM project_revisions r LEFT JOIN users u ON u.id=r.author_id WHERE project_id=$1 ORDER BY revision DESC`, [id], { order: 'r.revision DESC', textFields: ['summary',...personTextFields('author')] })
     },
     async revisionsPage(id, { limit, before }) {
       const args = [id], boundary = before === null ? '' : 'AND r.revision<$2::integer'
       if (before !== null) args.push(before)
       args.push(limit + 1)
-      return boundedMetadataPage(query, `SELECT r.revision,r.summary,r.created_at,u.email AS author FROM project_revisions r
-        LEFT JOIN users u ON u.id=r.author_id WHERE r.project_id=$1 ${boundary} ORDER BY r.revision DESC LIMIT $${args.length}`, args, { order: 'r.revision DESC', textFields: ['summary', 'author'], limit })
+      return boundedMetadataPage(query, `SELECT r.revision,r.summary,r.created_at,${personColumns('u', 'r.author_id', 'author')} FROM project_revisions r
+        LEFT JOIN users u ON u.id=r.author_id WHERE r.project_id=$1 ${boundary} ORDER BY r.revision DESC LIMIT $${args.length}`, args, { order: 'r.revision DESC', textFields: ['summary', ...personTextFields('author')], limit })
     },
     async revision(id, revision) {
       return (await query('SELECT yaml FROM project_revisions WHERE project_id=$1 AND revision=$2', [id, revision])).rows[0]

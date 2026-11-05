@@ -1,3 +1,4 @@
+import { personColumns, personTextFields } from '../shared/identity.js'
 import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
 import { libraryPageBytes } from './pagination.js'
 export function createBlockRepository(query) {
@@ -41,15 +42,15 @@ export function createBlockRepository(query) {
       await tx('INSERT INTO block_versions(block_id,version,yaml,author_id,summary) VALUES($1,$2,$3,$4,$5)', [id, version, yaml, authorId, summary])
     },
     async versions(id) {
-      return boundedLegacyList(query, 'SELECT v.version,v.summary,v.created_at,u.email AS author FROM block_versions v LEFT JOIN users u ON u.id=v.author_id WHERE block_id=$1 ORDER BY version DESC', [id], { order: 'r.version DESC', textFields: ['summary','author'] })
+      return boundedLegacyList(query, `SELECT v.version,v.summary,v.created_at,${personColumns('u', 'v.author_id', 'author')} FROM block_versions v LEFT JOIN users u ON u.id=v.author_id WHERE block_id=$1 ORDER BY version DESC`, [id], { order: 'r.version DESC', textFields: ['summary',...personTextFields('author')] })
     },
     async versionsPage(id, { limit, before }) {
       const args = [id], boundary = before === null ? '' : 'AND v.version<$2::integer'
       if (before !== null) args.push(before)
       args.push(limit + 1)
-      return boundedMetadataPage(query, `SELECT v.version,v.summary,v.created_at,u.email AS author FROM block_versions v
+      return boundedMetadataPage(query, `SELECT v.version,v.summary,v.created_at,${personColumns('u', 'v.author_id', 'author')} FROM block_versions v
         LEFT JOIN users u ON u.id=v.author_id WHERE v.block_id=$1 ${boundary}
-        ORDER BY v.version DESC LIMIT $${args.length}`, args, { order: 'r.version DESC', textFields: ['summary', 'author'], limit })
+        ORDER BY v.version DESC LIMIT $${args.length}`, args, { order: 'r.version DESC', textFields: ['summary', ...personTextFields('author')], limit })
     },
     async version(id, version) {
       return (await query('SELECT yaml FROM block_versions WHERE block_id=$1 AND version=$2', [id, version])).rows[0]

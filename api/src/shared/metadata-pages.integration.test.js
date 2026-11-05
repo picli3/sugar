@@ -15,7 +15,7 @@ test('metadata pages pack complete legacy values and preserve microsecond and bi
   await admin.query('CREATE SCHEMA '+schema)
   const pool=new pg.Pool({connectionString:url,options:'-c search_path='+schema}),q=(sql,args)=>pool.query(sql,args)
   t.after(async()=>{await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end()})
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,created_at timestamptz,visibility text,created_by uuid,sync_repository text,sync_branch text,settings_version int,deleted_at timestamptz)')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text)')
   await q('CREATE TABLE images(id uuid PRIMARY KEY,name text,mime text,scope text,owner_id uuid,created_by uuid,created_at timestamptz,deleted_at timestamptz)')

@@ -12,7 +12,7 @@ test('MFA migration bounds encrypted state and recovery material without changin
   await root.query('CREATE SCHEMA ' + schema)
   const db = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => db.query(sql, args)
   t.after(async () => { await db.end(); await root.query('DROP SCHEMA ' + schema + ' CASCADE'); await root.end() })
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text NOT NULL,auth_version integer NOT NULL DEFAULT 0)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text NOT NULL,auth_version integer NOT NULL DEFAULT 0)')
   const id = crypto.randomUUID(), other = crypto.randomUUID(), secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
   await q('INSERT INTO users(id,email) VALUES($1,$2),($3,$4)', [id, 'synthetic@example.invalid', other, 'other@example.invalid'])
   const before = (await q('SELECT * FROM users ORDER BY id')).rows

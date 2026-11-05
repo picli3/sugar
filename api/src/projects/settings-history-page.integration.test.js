@@ -10,7 +10,7 @@ test('settings history pages preserve bigint ids, isolate projects and recheck a
   await admin.query('CREATE SCHEMA '+schema)
   const pool=new pg.Pool({connectionString:url,options:'-c search_path='+schema}),statements=[],q=(sql,args)=>{statements.push(sql);return pool.query(sql,args)}
   t.after(async()=>{await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end()})
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,created_by uuid,visibility text,deleted_at timestamptz,yaml text)')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text,PRIMARY KEY(project_id,user_id))')
   await q('CREATE TABLE project_settings_history(id bigint PRIMARY KEY,project_id uuid,author_id uuid,before jsonb,after jsonb,created_at timestamptz)')

@@ -11,7 +11,7 @@ test('initial administrator is explicit, race-safe, never logged and never reset
   const root=new pg.Pool({connectionString:databaseUrl}),schema='bootstrap_'+crypto.randomUUID().replaceAll('-','');await root.query(`CREATE SCHEMA ${schema}`)
   const pool=new pg.Pool({connectionString:databaseUrl,options:`-c search_path=${schema}`}),q=(sql,args)=>pool.query(sql,args),transaction=createTransaction(pool)
   t.after(async()=>{await pool.end();await root.query(`DROP SCHEMA ${schema} CASCADE`);await root.end()})
-  await q('CREATE TABLE users(id uuid PRIMARY KEY,email text UNIQUE,password_hash text,role text)')
+  await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text UNIQUE,password_hash text,role text)')
   const logs=[],log=text=>logs.push(text)
   for(const env of [{},{ADMIN_PASSWORD:'short'},{ADMIN_PASSWORD:'x'.repeat(73)},{ADMIN_EMAIL:'invalid',ADMIN_PASSWORD:'valid-fixture-password'}])await assert.rejects(bootstrapAdmin({transaction,env,log}),{code:'BOOTSTRAP_CONFIG'})
   assert.equal((await q('SELECT count(*)::int n FROM users')).rows[0].n,0);assert.equal(logs.length,0)

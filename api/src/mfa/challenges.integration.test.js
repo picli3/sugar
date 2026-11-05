@@ -15,7 +15,7 @@ test('MFA login challenges persist throttling and consume replay/recovery proofs
   await root.query('CREATE SCHEMA ' + schema)
   const db = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => db.query(sql, args)
   t.after(async () => { await db.end(); await root.query('DROP SCHEMA ' + schema + ' CASCADE'); await root.end() })
-  await q(`CREATE TABLE users(id uuid PRIMARY KEY,email text,role text DEFAULT 'Admin',language text DEFAULT 'es',theme text DEFAULT 'light',
+  await q(`CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text,role text DEFAULT 'Admin',language text DEFAULT 'es',theme text DEFAULT 'light',
     active boolean DEFAULT true,password_hash text,auth_version int DEFAULT 0)`)
   await q('CREATE TABLE completed_logins(id uuid PRIMARY KEY,user_id uuid REFERENCES users(id))')
   await initMfaDb(q)

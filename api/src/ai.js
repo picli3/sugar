@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { initAiQuotas, reservedTokens } from './ai/quotas.js'
 import { noStore } from './shared/http.js'
 import { validateProject, stringify } from './model.js'
-import { analysisFields, createAnalysisHistory } from './ai/history.js'
+import { analysisAuthor, analysisFields, createAnalysisHistory } from './ai/history.js'
 import { aiResponseBytes } from './ai/storage.js'
 
 export const MODELS = ['deepseek-flash', 'deepseek-v4-pro']
@@ -131,17 +131,17 @@ export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, 
   }))
   app.get('/api/projects/:id/analyses/page', noStore, route(async (req,res) => {
     await requireProject(req)
-    res.json(await history.page(req.params.id, req.query))
+    res.json(await history.page(req.params.id, req.query, req.user))
   }))
   app.get('/api/projects/:id/analyses', noStore, route(async (req,res) => {
     await requireProject(req)
-    res.json(await history.legacy(req.params.id, req.query))
+    res.json(await history.legacy(req.params.id, req.query, req.user))
   }))
   app.get('/api/projects/:id/analyses/:analysisId', noStore, route(async (req,res) => {
     await requireProject(req)
     const { rows } = await q(`SELECT ${fields},a.snapshot,a.response FROM project_analyses a JOIN users u ON u.id=a.author_id WHERE a.project_id=$1 AND a.id=$2`, [req.params.id, req.params.analysisId])
     if (!rows[0]) fail(404, 'aiNotFound')
-    res.json(rows[0])
+    res.json(analysisAuthor(rows[0], req.user))
   }))
   app.post('/api/projects/:id/analyses', route(async (req,res) => {
     requireEdit(req)

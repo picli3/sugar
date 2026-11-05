@@ -1,3 +1,4 @@
+import { displayName } from '../shared/identity.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { error, requiredText } from '../shared/http.js'
@@ -9,7 +10,8 @@ export function createUserService(users, { runCredential = task => task(), passw
     async preferences(user, input) {
       const language = input.language ?? null, theme = input.theme ?? null
       if ((language !== null && !['es', 'en'].includes(language)) || (theme !== null && !['dark', 'light'].includes(theme))) error(400, 'Preferencia inválida')
-      return users.preferences(user.id, language, theme)
+      const nameChanged = Object.hasOwn(input, 'displayName')
+      return users.preferences(user.id, language, theme, nameChanged, nameChanged ? displayName(input.displayName) : null)
     },
     async password(user, input) {
       await runCredential(async () => {
