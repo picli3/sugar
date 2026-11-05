@@ -1,3 +1,4 @@
+export const syncJobMetadataBytes = 1024
 export function createDocumentStorageRepository(q) {
   const lock = tx => tx("SELECT pg_advisory_xact_lock(hashtext('sugar:document-storage'))")
   const config = async (tx = q) => {
@@ -6,12 +7,16 @@ export function createDocumentStorageRepository(q) {
   }
   async function usage(ownerId = null, tx = q) {
     const projectFilter = ownerId ? 'WHERE p.created_by=$1' : '', blockFilter = ownerId ? 'WHERE b.owner_id=$1' : ''
+    const syncBytes = `octet_length(s.yaml)::bigint+COALESCE(octet_length(s.target_repository),0)+COALESCE(octet_length(s.target_branch),0)+${syncJobMetadataBytes}`
+    const syncRows = ownerId ? `SELECT 'sync',${syncBytes} FROM sync_jobs s JOIN projects p ON p.id=s.record_id WHERE s.kind='project' AND p.created_by=$1
+      UNION ALL SELECT 'sync',${syncBytes} FROM sync_jobs s JOIN blocks b ON b.id=s.record_id WHERE s.kind='block' AND b.owner_id=$1` : `SELECT 'sync',${syncBytes} FROM sync_jobs s`
     return (await tx(`SELECT count(*) FILTER(WHERE kind='project') AS projects,count(*) FILTER(WHERE kind='block') AS blocks,
-      count(*) FILTER(WHERE kind='revision') AS revisions,COALESCE(sum(bytes),0) AS bytes FROM (
+      count(*) FILTER(WHERE kind='revision') AS revisions,count(*) FILTER(WHERE kind='sync') AS sync_jobs,COALESCE(sum(bytes),0) AS bytes FROM (
       SELECT 'project' AS kind,octet_length(p.yaml)::bigint+octet_length(p.name) AS bytes FROM projects p ${projectFilter}
       UNION ALL SELECT 'block',octet_length(b.name) FROM blocks b ${blockFilter}
       UNION ALL SELECT 'revision',octet_length(r.yaml)::bigint+octet_length(r.summary) FROM project_revisions r JOIN projects p ON p.id=r.project_id ${projectFilter}
       UNION ALL SELECT 'revision',octet_length(v.yaml)::bigint+octet_length(v.summary) FROM block_versions v JOIN blocks b ON b.id=v.block_id ${blockFilter}
+      UNION ALL ${syncRows}
       ) retained`, ownerId ? [ownerId] : [])).rows[0]
   }
   return {

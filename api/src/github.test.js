@@ -42,3 +42,26 @@ test('worker publishes to each project repository and branch without reading glo
     }
   } finally { keys.forEach((k,i)=> { if(previous[i]===undefined) delete process.env[k]; else process.env[k]=previous[i] }) }
 })
+
+test('worker rejects excessive commit metadata and bounds retry exponent before evaluation', async () => {
+  const keys = ['GITHUB_APP_ID','GITHUB_INSTALLATION_ID','GITHUB_PRIVATE_KEY']
+  const previous = keys.map(key => process.env[key])
+  keys.forEach(key => { process.env[key] = 'test-only' })
+  try {
+    for (const sha of ['ñ'.repeat(65), { unexpected: 'metadata' }]) {
+      const updates = []
+      await syncOne({
+        query: async (sql, args) => {
+          if (sql.startsWith('SELECT')) return { rows: [{ id: 1, kind: 'project', record_id: 'p', revision: 1, yaml: 'name: fixture', target_repository: 'fixture/repo' }] }
+          updates.push([sql, args]); return { rows: [] }
+        },
+        authenticate: () => async () => ({ token: 'fake-token' }),
+        request: async (_url, options) => options.method === 'PUT' ? { ok: true, json: async () => ({ commit: { sha } }) } : { ok: false, status: 404 },
+      })
+      assert.equal(updates.length, 1)
+      assert.doesNotMatch(updates[0][0], /status='synced'/)
+      assert.match(updates[0][0], /POWER\(2, LEAST\(attempts,12\)\)/)
+      assert.deepEqual(updates[0][1], [1, 'UNEXPECTED_ERROR'])
+    }
+  } finally { keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i] }) }
+})

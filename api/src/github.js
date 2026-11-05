@@ -30,9 +30,10 @@ export async function syncOne({ query = q, authenticate = createAppAuth, request
     const res = await request(url, { method: 'PUT', headers, body: JSON.stringify({ message: `${job.kind} ${job.record_id} revision ${job.revision}`, content: Buffer.from(job.yaml).toString('base64'), branch, ...(sha ? { sha } : {}) }) })
     if (!res.ok) throw Object.assign(new Error('GitHub write failed'), { code: `GITHUB_WRITE_${res.status}` })
     const data = await res.json()
+    if (data.commit?.sha != null && (typeof data.commit.sha !== 'string' || Buffer.byteLength(data.commit.sha) > 128)) throw Object.assign(new Error('Invalid GitHub commit metadata'), { code: 'GITHUB_COMMIT_INVALID' })
     await query("UPDATE sync_jobs SET status='synced', error=NULL, commit_sha=$2 WHERE id=$1", [job.id, data.commit?.sha || null])
   } catch (e) {
-    if (job) await query("UPDATE sync_jobs SET attempts=attempts+1,error=$2,next_attempt_at=now() + ((LEAST(POWER(2, attempts), 3600))::text || ' seconds')::interval WHERE id=$1", [job.id, failureCode(e)])
+    if (job) await query("UPDATE sync_jobs SET attempts=attempts+1,error=$2,next_attempt_at=now() + ((LEAST(POWER(2, LEAST(attempts,12)), 3600))::text || ' seconds')::interval WHERE id=$1", [job.id, failureCode(e)])
     reportFailure('GitHub sync failed', e)
   } finally { running = false }
 }

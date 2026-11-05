@@ -85,12 +85,13 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       const before = { visibility: current.visibility, sync_repository: current.sync_repository, sync_branch: current.sync_branch }
       const after = { visibility, sync_repository: repository, sync_branch: branch }
       if (JSON.stringify(before) !== JSON.stringify(after)) {
-        await transaction(async tx => {
+        const changedTarget = repository !== current.sync_repository || branch !== current.sync_branch
+        const mutate = repository && changedTarget ? action => write(id, action) : transaction
+        await mutate(async tx => {
           await get(id, user, { ownerOnly: true }, tx, true)
           const saved = await projects.settings(id, expected, visibility, repository, branch, tx)
           if (!saved) error(409, 'La configuración cambió; recarga antes de guardar')
           await projects.addSettingsHistory(id, user.id, before, after, tx)
-          const changedTarget = repository !== current.sync_repository || branch !== current.sync_branch
           if (changedTarget) await projects.skipPendingSync(id, tx)
           if (repository && changedTarget) await enqueue('project', id, saved.revision, saved.yaml, tx, { repository, branch })
         })

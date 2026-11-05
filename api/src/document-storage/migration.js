@@ -4,4 +4,5 @@ export async function initDocumentStorage(q) {
   await q('INSERT INTO document_storage_config(id,value) VALUES(true,$1::jsonb) ON CONFLICT(id) DO NOTHING', [JSON.stringify(defaultDocumentStorage)])
   await q('CREATE INDEX IF NOT EXISTS projects_storage_owner ON projects(created_by)')
   await q('CREATE INDEX IF NOT EXISTS blocks_storage_owner ON blocks(owner_id)')
+  await q('CREATE INDEX IF NOT EXISTS sync_jobs_storage_resource ON sync_jobs(kind,record_id)')
 }

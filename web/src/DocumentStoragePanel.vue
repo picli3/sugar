@@ -36,7 +36,7 @@ onUnmounted(() => { generation++ })
     <h2>{{ t(admin ? 'documentStorageTitle' : 'documentStorageUsage') }}</h2><p class="hint">{{ t('documentStorageHint') }}</p>
     <p v-if="admin" class="hint">{{ t('documentStorageAdminHint') }}</p>
     <p v-if="error" class="message error" role="alert">{{ error }}</p><p v-if="saved" role="status">{{ t('documentStorageSaved') }}</p>
-    <template v-if="config"><p v-for="key in counters" :key="key">{{ t('documentStorageCount_' + key) }}: {{ config.usage[key] }} / {{ cap(key) }}</p><p v-if="!admin" class="hint">{{ t('documentStoragePerItem').replace('{projectRevisions}', String(limits?.projectRevisions)).replace('{blockVersions}', String(limits?.blockVersions)) }}</p></template>
+    <template v-if="config"><p v-for="key in counters" :key="key">{{ t('documentStorageCount_' + key) }}: {{ config.usage[key] }} / {{ cap(key) }}</p><p v-if="config.usage.sync_jobs !== undefined">{{ t('documentStorageSyncJobs') }}: {{ config.usage.sync_jobs }}</p><p v-if="!admin" class="hint">{{ t('documentStoragePerItem').replace('{projectRevisions}', String(limits?.projectRevisions)).replace('{blockVersions}', String(limits?.blockVersions)) }}</p></template>
     <form v-if="admin && config" @submit.prevent="save"><fieldset :disabled="busy"><label v-for="key in fields" :key="key">{{ t('documentStorage_' + key) }}<input v-model.number="config[key]" type="number" min="0" step="1" required></label><button class="primary" type="submit">{{ t('saveSettings') }}</button></fieldset></form>
     <button class="secondary" type="button" :disabled="busy" @click="load()">{{ t('imageStorageReload') }}</button>
   </section>
