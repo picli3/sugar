@@ -95,7 +95,7 @@ test('readiness remains subject to API polling limits while liveness stays indep
 })
 
 test('readiness rejects missing or corrupt quota configuration but accepts deliberately closed budgets', async () => {
-  for (const patch of [{ image_limits:null },{ document_limits:{} },{ image_version:0 },{ document_version:'1' },{ image_limits:{...defaultImageStorage,userFiles:'10'} }]) {
+  for (const patch of [{ mfa_sessions_ready: false },{ mfa_sessions_ready: undefined },{ image_limits:null },{ document_limits:{} },{ image_version:0 },{ document_version:'1' },{ image_limits:{...defaultImageStorage,userFiles:'10'} }]) {
     assert.equal(await databaseProbe(async()=>({rows:[{...readyRow(1),...patch}]}))(),false)
   }
   const closed=readyRow(1)

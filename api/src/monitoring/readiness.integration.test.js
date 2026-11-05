@@ -1,3 +1,5 @@
+import { initMfaDb } from '../mfa/migration.js'
+import { initMfaSessionDb } from '../mfa/session-migration.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -33,15 +35,19 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
     project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
     sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid',
     block_categories: 'slug text,name text,name_key text,icon text', ai_quota_config: 'value jsonb',
-    users: 'email text,password_hash text,role text', project_members: 'project_id uuid,user_id uuid,role text',
+    users: 'id uuid PRIMARY KEY,email text,password_hash text,role text', project_members: 'project_id uuid,user_id uuid,role text',
     user_sessions: 'id uuid,user_id uuid', image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
-    mfa_credentials: "secret_box jsonb,pending_box jsonb,recovery_hashes text[] NOT NULL DEFAULT '{}',challenge_hash text",
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
   })) await q(`CREATE TABLE ${table}(${columns})`)
   await ready(false)
+  await initMfaDb(q); await initMfaSessionDb(q)
   const migrateTotal = () => initTotalStorage(q, createTransaction(pool))
   await migrateTotal(); await ready(true)
+  await q('ALTER TABLE user_sessions DISABLE TRIGGER sugar_mfa_session_guard');await ready(false)
+  await q('ALTER TABLE user_sessions ENABLE TRIGGER sugar_mfa_session_guard');await ready(true)
+  await q('ALTER TABLE user_sessions ALTER COLUMN mfa_verified DROP NOT NULL');await ready(false)
+  await q('ALTER TABLE user_sessions ALTER COLUMN mfa_verified SET NOT NULL');await ready(true)
   await q('DROP TRIGGER sugar_total_storage_images ON images');await ready(false)
   await migrateTotal(); await ready(true)
   await q('ALTER TABLE users DISABLE TRIGGER sugar_total_storage_users');await ready(false)

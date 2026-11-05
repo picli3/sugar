@@ -5,7 +5,7 @@ import { matchesRecoveryCode } from './recovery.js'
 
 const challengeDigest = token => crypto.createHash('sha256').update('sugar:mfa:login:v1:' + token).digest('hex')
 const failureWindowMs = 15 * 60 * 1000
-function window(state, now) {
+export function attemptWindow(state, now) {
   const expired = now.getTime() - state.failures_since.getTime() >= failureWindowMs
   return { failures: expired ? 0 : state.failures, since: expired ? now : state.failures_since }
 }
@@ -22,7 +22,7 @@ export function createMfaChallenges({ transaction, secretBox }) {
         if (!user?.active || typeof expectedHash !== 'string' || user.password_hash !== expectedHash) return denied()
         const state = (await tx('SELECT * FROM mfa_credentials WHERE user_id=$1 FOR UPDATE', [userId])).rows[0]
         if (!state?.enabled) return { value: null }
-        const now = (await tx('SELECT clock_timestamp() AS now')).rows[0].now, attempts = window(state, now)
+        const now = (await tx('SELECT clock_timestamp() AS now')).rows[0].now, attempts = attemptWindow(state, now)
         if (attempts.failures >= 5) return denied(429, 'mfaRateLimited')
         const token = crypto.randomBytes(32).toString('base64url'), expiresAt = new Date(now.getTime() + 5 * 60 * 1000)
         await tx(`UPDATE mfa_credentials SET challenge_hash=$2,challenge_expires_at=$3,challenge_auth_version=$4,
@@ -45,7 +45,7 @@ export function createMfaChallenges({ transaction, secretBox }) {
         const state = (await tx('SELECT * FROM mfa_credentials WHERE user_id=$1 FOR UPDATE', [located.user_id])).rows[0]
         const now = (await tx('SELECT clock_timestamp() AS now')).rows[0].now
         if (!user?.active || !state?.enabled || state.challenge_hash !== hash || state.challenge_auth_version !== user.auth_version || state.challenge_expires_at <= now) return denied()
-        const attempts = window(state, now)
+        const attempts = attemptWindow(state, now)
         if (attempts.failures >= 5) return denied(429, 'mfaRateLimited')
         let step = null, recoveredHash = null
         if (recovery) {
