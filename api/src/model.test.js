@@ -95,3 +95,17 @@ test('accepts independent target leg coordinates and rejects invalid targetX',()
   assert.equal(validateProject(stringify(doc)).edges[0].route.targetX,-80)
   for(const value of ['80',null,Infinity]) { doc.edges[0].route.targetX=value; assert.throws(()=>validateProject(stringify(doc)),/targetX válida/) }
 })
+
+test('connection errors name the block and port and say how to fix them, in both languages', () => {
+  const block = (name, ports) => ({ name, function: 'f', ports })
+  const project = (edges, source, target) => stringify({ name: 'x', nodes: [{ id: 'a', position: { x: 0, y: 0 }, block: block('MCU', source) }, { id: 'b', position: { x: 1, y: 1 }, block: block('IMU', target) }], edges })
+  const edge = { id: 'e', source: 'a', target: 'b', sourcePort: 's', targetPort: 't' }
+  assert.throws(() => validateProject(project([edge], [{ id: 's', label: 'SPI', protocol: 'SPI', direction: 'out' }], [{ id: 't', label: 'I2C', protocol: 'I2C', direction: 'in' }])),
+    /Protocolos incompatibles: SPI y I2C\. Conecta puertos del mismo protocolo \(MCU · SPI → IMU · I2C\) \/ Incompatible protocols/)
+  assert.throws(() => validateProject(project([edge], [{ id: 's', label: 'MOSI', protocol: 'SPI', direction: 'in' }], [{ id: 't', label: 'SPI', protocol: 'SPI', direction: 'in' }])),
+    /Dirección de puertos incompatible \(MCU · MOSI: in → IMU · SPI: in\)\. Conecta desde una salida .* \/ Incompatible port direction/)
+  assert.throws(() => validateProject(project([edge, { ...edge, id: 'f' }], [{ id: 's', label: '5V', protocol: 'POWER', direction: 'out' }], [{ id: 't', label: 'VIN', protocol: 'POWER', direction: 'in', maxConnections: 1 }])),
+    /Límite de conexiones excedido: IMU · VIN admite 1\. Quita una conexión .* \/ Connection limit exceeded/)
+  assert.throws(() => validateProject(project([{ ...edge, targetPort: 'missing' }], [{ id: 's', label: 'SPI', protocol: 'SPI', direction: 'out' }], [{ id: 't', label: 'SPI', protocol: 'SPI', direction: 'in' }])),
+    /puerto inexistente \(IMU · missing\); revisa sourcePort y targetPort/)
+})

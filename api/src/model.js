@@ -143,14 +143,15 @@ export function validateProject(text) {
     if (edgeIds.has(e.id)) fail(`Conexión duplicada: ${e.id}`)
     edgeIds.add(e.id)
     const a = nodes.get(e.source), b = nodes.get(e.target)
-    if (!a || !b || a === b) fail('La conexión debe unir dos bloques existentes')
+    if (!a || !b || a === b) fail('La conexión debe unir dos bloques distintos que existan en el diagrama / A connection must join two different blocks that exist in the diagram')
     const ap = a.block.ports.find(x => x.id === e.sourcePort), bp = b.block.ports.find(x => x.id === e.targetPort)
-    if (!ap || !bp) fail('La conexión referencia un puerto inexistente')
-    if (ap.protocol.trim() !== bp.protocol.trim()) fail(`Protocolos incompatibles: ${ap.protocol} y ${bp.protocol}`)
-    if (ap.direction === 'in' || bp.direction === 'out') fail('Dirección de puertos incompatible')
+    const where = (node, port) => `${node.block.name} · ${port?.label || port?.id || '?'}`
+    if (!ap || !bp) fail(`La conexión referencia un puerto inexistente (${!ap ? `${a.block.name} · ${e.sourcePort}` : `${b.block.name} · ${e.targetPort}`}); revisa sourcePort y targetPort en el YAML / The connection references a missing port; check sourcePort and targetPort in the YAML`)
+    if (ap.protocol.trim() !== bp.protocol.trim()) fail(`Protocolos incompatibles: ${ap.protocol} y ${bp.protocol}. Conecta puertos del mismo protocolo (${where(a, ap)} → ${where(b, bp)}) / Incompatible protocols: ${ap.protocol} and ${bp.protocol}. Connect ports that use the same protocol`)
+    if (ap.direction === 'in' || bp.direction === 'out') fail(`Dirección de puertos incompatible (${where(a, ap)}: ${ap.direction} → ${where(b, bp)}: ${bp.direction}). Conecta desde una salida (out) o bidireccional hacia una entrada (in) o bidireccional / Incompatible port direction. Connect from an output (out) or bidirectional port to an input (in) or bidirectional port`)
     for (const [id, port] of [[a.id, ap], [b.id, bp]]) {
       const key = `${id}:${port.id}`, count = (counts.get(key) || 0) + 1
-      if (port.maxConnections && count > port.maxConnections) fail(`Límite de conexiones excedido: ${key}`)
+      if (port.maxConnections && count > port.maxConnections) fail(`Límite de conexiones excedido: ${where(nodes.get(id), port)} admite ${port.maxConnections}. Quita una conexión o aumenta maxConnections del puerto / Connection limit exceeded: this port allows ${port.maxConnections}; remove a connection or raise maxConnections`)
       counts.set(key, count)
     }
   }
