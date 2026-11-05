@@ -6,6 +6,9 @@ import pg from 'pg'
 import { createReadiness,databaseProbe } from './readiness.js'
 import { defaultImageStorage } from '../images/quotas.js'
 import { defaultDocumentStorage } from '../document-storage/config.js'
+import { defaultTotalStorage } from '../storage-total/config.js'
+import { initTotalStorage } from '../storage-total/migration.js'
+import { createTransaction } from '../db.js'
 const url=process.env.API_TEST_DATABASE_URL
 test('quota readiness fails closed on old/missing/corrupt schemas and recovers without rewriting data', {skip:!url},async t=>{
   const schema='quota_readiness_'+crypto.randomBytes(8).toString('hex'),admin=new pg.Pool({connectionString:url})
@@ -21,8 +24,31 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
   await q('INSERT INTO image_storage_config VALUES(true,$1,1)',[JSON.stringify(defaultImageStorage)])
   await q('INSERT INTO document_storage_config VALUES(true,$1,1)',[JSON.stringify(defaultDocumentStorage)])
   await ready(false)
-  await q('CREATE TABLE ai_calls(storage_bytes bigint NOT NULL DEFAULT 0)')
-  await ready(true)
+  await q('CREATE TABLE ai_calls(payload_hash text,status text,user_id uuid,storage_bytes bigint NOT NULL DEFAULT 0)')
+  await ready(false)
+  // Remaining tables counted by the total storage guard (settings and quota configs already exist).
+  for (const [table, columns] of Object.entries({
+    images: 'name text,mime text,data bytea', projects: 'name text,yaml text', blocks: 'name text',
+    project_revisions: 'yaml text,summary text', block_versions: 'yaml text,summary text', project_settings_history: 'before jsonb,after jsonb',
+    project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
+    sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid',
+    block_categories: 'slug text,name text,name_key text,icon text', ai_quota_config: 'value jsonb',
+    users: 'email text,password_hash text,role text', project_members: 'project_id uuid,user_id uuid,role text',
+    user_sessions: 'id uuid,user_id uuid', image_references: 'image_id uuid,resource_kind text,resource_id uuid',
+    pending_registrations: 'email text,token_hash text,language text',
+    account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
+  })) await q(`CREATE TABLE ${table}(${columns})`)
+  await ready(false)
+  const migrateTotal = () => initTotalStorage(q, createTransaction(pool))
+  await migrateTotal(); await ready(true)
+  await q('DROP TRIGGER sugar_total_storage_images ON images');await ready(false)
+  await migrateTotal(); await ready(true)
+  await q('ALTER TABLE users DISABLE TRIGGER sugar_total_storage_users');await ready(false)
+  await q('ALTER TABLE users ENABLE TRIGGER sugar_total_storage_users');await ready(true)
+  await q('UPDATE total_storage_config SET value=$1',[JSON.stringify({...defaultTotalStorage,aiBytes:-1})]);await ready(false)
+  await q('UPDATE total_storage_config SET value=$1',[JSON.stringify(defaultTotalStorage)]);await ready(true)
+  await q('DELETE FROM total_storage_usage');await ready(false)
+  await migrateTotal(); await ready(true)
   await q('ALTER TABLE ai_calls ALTER COLUMN storage_bytes DROP NOT NULL');await ready(false)
   await q('ALTER TABLE ai_calls ALTER COLUMN storage_bytes SET NOT NULL');await ready(true)
   await q('ALTER TABLE ai_calls ALTER COLUMN storage_bytes TYPE text');await ready(false)
