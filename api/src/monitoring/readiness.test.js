@@ -1,8 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { setImmediate as tick } from 'node:timers/promises'
-import { createReadiness, databaseProbe } from './readiness.js'
+import { createReadiness, databaseProbe, readinessQuery } from './readiness.js'
 import { createApp } from '../app.js'
+import { defaultImageStorage } from '../images/quotas.js'
+import { defaultDocumentStorage } from '../document-storage/config.js'
+import { readyRow } from '../../test-support/readiness.js'
 
 test('readiness caches checks and observes failures and recovery after expiry', async () => {
   let now = 0, calls = 0, healthy = true
@@ -42,20 +45,20 @@ test('database probe checks schema using a bounded read-only query and rejects m
   for (const value of [1, 0, 2, '1', null]) {
     const probe = databaseProbe(async options => {
       assert.equal(options.query_timeout, 1000)
-      assert.equal(options.text, "SELECT value FROM settings WHERE key='schema_version'")
-      return { rows: value === null ? [] : [{ value }] }
+      assert.equal(options.text, readinessQuery)
+      return { rows: value === null ? [] : [readyRow(value)] }
     })
     assert.equal(await probe(), value === 1)
   }
 })
 
 test('HTTP separates liveness and readiness, requires no login, and never exposes database diagnostics', async t => {
-  for (const mode of ['ready', 'schema', 'error']) {
+  for (const mode of ['ready', 'schema', 'quota', 'error']) {
     let calls = 0
     const q = async () => {
       calls++
       if (mode === 'error') throw Error('synthetic-private-database-diagnostic')
-      return { rows: [{ value: mode === 'ready' ? 1 : 2 }] }
+      return { rows: [{ ...readyRow(mode === 'schema' ? 2 : 1), ...(mode === 'quota' ? { image_version: 0 } : {}) }] }
     }
     const unexpected = () => { throw Error('unexpected dependency') }
     const app = createApp({ q, transaction: unexpected, secret: 'synthetic-readiness-secret', enqueue: unexpected, syncOne: unexpected })
@@ -79,7 +82,7 @@ test('HTTP separates liveness and readiness, requires no login, and never expose
 
 test('readiness remains subject to API polling limits while liveness stays independent', async t => {
   let calls = 0
-  const q = async () => { calls++; return { rows: [{ value: 1 }] } }
+  const q = async () => { calls++; return { rows: [readyRow(1)] } }
   const app = createApp({ q, secret: 'synthetic-rate-secret', accessConfig: { ip: 1, global: 1, keys: 10 } })
   const server = app.listen(0, '127.0.0.1')
   await new Promise(resolve => server.once('listening', resolve))
@@ -89,4 +92,14 @@ test('readiness remains subject to API polling limits while liveness stays indep
   assert.equal((await fetch(url + '/ready')).status, 429)
   assert.equal((await fetch(url + '/health')).status, 200)
   assert.equal(calls, 1)
+})
+
+test('readiness rejects missing or corrupt quota configuration but accepts deliberately closed budgets', async () => {
+  for (const patch of [{ image_limits:null },{ document_limits:{} },{ image_version:0 },{ document_version:'1' },{ image_limits:{...defaultImageStorage,userFiles:'10'} }]) {
+    assert.equal(await databaseProbe(async()=>({rows:[{...readyRow(1),...patch}]}))(),false)
+  }
+  const closed=readyRow(1)
+  closed.image_limits=Object.fromEntries(Object.keys(defaultImageStorage).map(key=>[key,0]))
+  closed.document_limits=Object.fromEntries(Object.keys(defaultDocumentStorage).map(key=>[key,0]))
+  assert.equal(await databaseProbe(async()=>({rows:[closed]}))(),true)
 })

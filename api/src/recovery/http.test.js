@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createApp } from '../app.js'
+import { readyRow } from '../../test-support/readiness.js'
 
 test('disabled recovery exposes only availability and rejects mutation, origin and oversized bodies before SQL', async t => {
   const audit = [], unexpected = () => { throw Error('Unexpected SQL') }
@@ -22,7 +23,7 @@ test('disabled recovery exposes only availability and rejects mutation, origin a
 
 test('recovery readiness requires its capability only when explicitly enabled', async t => {
   for (const enabled of [false, true]) {
-    const app = createApp({ q: async query => ({ rows: [{ value: query.text.includes('recovery_schema_version') ? 0 : 1 }] }),
+    const app = createApp({ q: async query => ({ rows: [readyRow(query.text.includes('recovery_schema_version') ? 0 : 1)] }),
       secret: 'synthetic-recovery-readiness-secret', recoveryConfig: { enabled, origin: 'https://example.invalid' }, registrationConfig: { enabled: false } })
     const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve)); t.after(() => new Promise(resolve => server.close(resolve)))
     assert.equal((await fetch(`http://127.0.0.1:${server.address().port}/api/ready`)).status, enabled ? 503 : 200)

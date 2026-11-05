@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createApp } from '../app.js'
+import { readyRow } from '../../test-support/readiness.js'
 import { createAccessControls, limitsConfig } from '../security/limits.js'
 
 test('public registration endpoints enforce body/origin/rate controls without exposing tokens or recipients', async t => {
@@ -44,7 +45,7 @@ test('registration limits follow email spelling across client addresses and boun
 
 test('enabled registration fails readiness before its migration while compatible disabled releases remain ready', async t => {
   for (const enabled of [false, true]) {
-    const app = createApp({ q: async options => ({ rows: [{ value: options.text.includes('registration_schema_version') ? 0 : 1 }] }),
+    const app = createApp({ q: async options => ({ rows: [readyRow(options.text.includes('registration_schema_version') ? 0 : 1)] }),
       secret: 'synthetic-registration-schema-secret', registrationConfig: { enabled, origin: 'https://example.invalid' }, sendVerification: async () => {} })
     const listener = app.listen(0, '127.0.0.1'); await new Promise(resolve => listener.once('listening', resolve)); t.after(() => new Promise(resolve => listener.close(resolve)))
     const response = await fetch(`http://127.0.0.1:${listener.address().port}/api/ready`)
