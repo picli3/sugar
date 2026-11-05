@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { createPatch } from 'diff'
+import { documentDiff } from '../shared/document-diff.js'
 import { error, requiredText } from '../shared/http.js'
 import { requireAdmin, requireEdit, requireProjectAccess, projectPermissions } from '../auth/policies.js'
 import { normalizeColorLiterals, stringify, validateProject, revisionSummary } from '../model.js'
@@ -155,7 +155,7 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       const rows = await projects.comparison(id, a, b)
       const one = rows.find(r => r.revision === a), two = rows.find(r => r.revision === b)
       if (!one || !two) error(404, 'Revisión no encontrada')
-      return createPatch('project.yaml', one.yaml, two.yaml, `revision ${a}`, `revision ${b}`)
+      return documentDiff('project.yaml', one.yaml, two.yaml, `revision ${a}`, `revision ${b}`)
     },
     async restore(id, user, input) {
       await get(id, user, { edit: true })

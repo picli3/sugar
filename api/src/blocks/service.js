@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { createPatch } from 'diff'
+import { documentDiff } from '../shared/document-diff.js'
 import { error, requiredText } from '../shared/http.js'
 import { requireAdmin } from '../auth/policies.js'
 import { libraryOwner, libraryPermissions, requireLibraryAccess } from '../library/access.js'
@@ -60,7 +60,7 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
       const rows = await blocks.comparison(id, a, b)
       const one = rows.find(r => r.version === a), two = rows.find(r => r.version === b)
       if (!one || !two) error(404, 'Versión no encontrada')
-      return createPatch('block.yaml', one.yaml, two.yaml, `version ${a}`, `version ${b}`)
+      return documentDiff('block.yaml', one.yaml, two.yaml, `version ${a}`, `version ${b}`)
     },
     async restore(id, user, input) {
       await get(id, user, true)

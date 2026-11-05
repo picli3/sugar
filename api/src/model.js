@@ -4,7 +4,7 @@ const directions = ['in', 'out', 'bidirectional']
 const fail = (message) => { throw Object.assign(new Error(message), { status: 400 }) }
 const object = (v) => v && typeof v === 'object' && !Array.isArray(v)
 const string = (v) => typeof v === 'string' && v.trim().length > 0
-export const documentLimits = Object.freeze({ yamlBytes: 2_000_000, depth: 32, values: 200_000, nodes: 500, edges: 2000, portsPerBlock: 128, portsPerProject: 10_000, nameBytes: 800, descriptionBytes: 8000, identifierBytes: 256, protocolBytes: 400, summaryBytes: 8000, propertyKeys: 256, propertyKeyBytes: 200, links: 64 })
+export const documentLimits = Object.freeze({ yamlBytes: 2_000_000, depth: 32, values: 200_000, nodes: 500, edges: 2000, portsPerBlock: 128, portsPerProject: 10_000, nameBytes: 800, descriptionBytes: 8000, identifierBytes: 256, protocolBytes: 400, summaryBytes: 8000, propertyKeys: 256, propertyKeyBytes: 200, links: 64, diffLines: 50_000, diffEdits: 10_000, diffTimeoutMs: 1000 })
 const exceeds = (subject, maximum) => fail(`${subject}: máximo ${maximum}; reduce el contenido / maximum ${maximum}; reduce the content`)
 const boundedText = (value, maximum, label) => { if (Buffer.byteLength(value, 'utf8') > maximum) exceeds(label + ' UTF-8 bytes', maximum) }
 export function revisionSummary(value, fallback) {
