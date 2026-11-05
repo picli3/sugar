@@ -3,6 +3,7 @@ import { initAiQuotas, reservedTokens } from './ai/quotas.js'
 import { noStore } from './shared/http.js'
 import { validateProject, stringify } from './model.js'
 import { analysisFields, createAnalysisHistory } from './ai/history.js'
+import { aiResponseBytes } from './ai/storage.js'
 
 export const MODELS = ['deepseek-flash', 'deepseek-v4-pro']
 export const fail = (status, code) => { throw Object.assign(new Error(code), { status }) }
@@ -61,15 +62,40 @@ export async function callDeepSeek(config, messages, { fetchImpl = fetch, timeou
   try {
     const response = await fetchImpl('https://api.deepseek.com/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(timeoutMs), body: JSON.stringify({ model: config.model, messages, max_tokens: maxTokens, stream: false, thinking: { type: 'disabled' } }) })
     if (!response.ok) fail(response.status === 401 ? 400 : response.status === 402 ? 402 : response.status === 429 ? 429 : 502, response.status === 401 ? 'aiInvalidToken' : response.status === 402 ? 'aiNoBalance' : response.status === 429 ? 'aiRateLimit' : 'aiProviderError')
-    const body = await response.json(), choice = body.choices?.[0]
+    const body = await providerJson(response), choice = body.choices?.[0]
     if (choice?.finish_reason === 'length') fail(502, 'aiOutputLimit')
-    if (typeof choice?.message?.content !== 'string' || !choice.message.content.trim()) fail(502, 'aiProviderError')
-    const usage = body.usage ? Object.fromEntries(['prompt_tokens', 'completion_tokens', 'total_tokens'].filter(k => Number.isFinite(body.usage[k])).map(k => [k, body.usage[k]])) : null
-    return { response: choice.message.content.trim(), usage }
+    return boundedResult({ response: choice?.message?.content, usage: body.usage })
   } catch (e) {
     if (e.status) throw e
     fail(e.name === 'TimeoutError' || e.name === 'AbortError' ? 504 : 502, e.name === 'TimeoutError' || e.name === 'AbortError' ? 'aiTimeout' : 'aiProviderError')
   }
+}
+export function boundedResult(result) {
+  if (typeof result?.response !== 'string' || !result.response.trim()) fail(502, 'aiProviderError')
+  if (Buffer.byteLength(result.response) > aiResponseBytes) fail(502, 'aiProviderTooLarge')
+  const usage = result.usage ? Object.fromEntries(['prompt_tokens','completion_tokens','total_tokens'].filter(key => Number.isSafeInteger(result.usage[key]) && result.usage[key] >= 0).map(key => [key, result.usage[key]])) : null
+  return { response: result.response.trim(), usage }
+}
+const providerBodyBytes = 2 * 1024 * 1024
+async function providerJson(response) {
+  if (Number(response.headers?.get('content-length')) > providerBodyBytes) { await response.body?.cancel?.(); fail(502, 'aiProviderTooLarge') }
+  if (!response.body?.getReader) {
+    const body = await response.json()
+    if (Buffer.byteLength(JSON.stringify(body)) > providerBodyBytes) fail(502, 'aiProviderTooLarge')
+    return body
+  }
+  const reader = response.body.getReader(), parts = []
+  let size = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > providerBodyBytes) { await reader.cancel(); fail(502, 'aiProviderTooLarge') }
+      parts.push(Buffer.from(value))
+    }
+    return JSON.parse(Buffer.concat(parts, size).toString('utf8'))
+  } finally { reader.releaseLock() }
 }
 export async function initAiDb(q) {
   await q(`CREATE TABLE IF NOT EXISTS project_analyses (id uuid PRIMARY KEY, project_id uuid NOT NULL REFERENCES projects(id), author_id uuid NOT NULL REFERENCES users(id), request_id uuid NOT NULL, snapshot jsonb NOT NULL, snapshot_hash text NOT NULL, base_revision integer NOT NULL, action text NOT NULL, focus text NOT NULL, language text NOT NULL, provider text NOT NULL, model text NOT NULL, response text NOT NULL, usage jsonb, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(author_id,request_id))`)
@@ -131,10 +157,11 @@ export function registerAi(app, { q, requireAdmin, requireEdit, requireProject, 
     }
     const c = await config()
     if (!c.enabled || !c.token) fail(503, 'aiUnavailable')
-    const call = await quota.reserve(req.user.id, requestId, fingerprint({ project: project.id, hash, action, focus, language, baseRevision }), reservedTokens(messages), project.id)
+    const plan = { snapshot, snapshot_hash: hash, action, focus, language, provider: 'deepseek', model: c.model }
+    const call = await quota.reserve(req.user.id, requestId, fingerprint({ project: project.id, hash, action, focus, language, baseRevision }), reservedTokens(messages), project.id, plan)
     if (call.replay) return res.json({ id: call.analysisId })
     try {
-      const result = await callProvider(c, messages), id = crypto.randomUUID()
+      const result = boundedResult(await callProvider(c, messages)), id = crypto.randomUUID()
       await quota.settle(call.id, result.usage, async tx => {
         await tx(`INSERT INTO project_analyses(id,project_id,author_id,request_id,snapshot,snapshot_hash,base_revision,action,focus,language,provider,model,response,usage) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)`, [id,project.id,req.user.id,requestId,JSON.stringify(snapshot),hash,baseRevision,action,focus,language,'deepseek',c.model,result.response,JSON.stringify(result.usage)])
         return id

@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import express from 'express'
-import { encryptToken, decryptToken, updateConfig, publicConfig, analysisMessages, fingerprint, callDeepSeek, registerAi } from './ai.js'
+import { encryptToken, decryptToken, updateConfig, publicConfig, analysisMessages, fingerprint, callDeepSeek, registerAi, boundedResult } from './ai.js'
+import { aiResponseBytes } from './ai/storage.js'
 
 process.env.AI_ENCRYPTION_KEY = 'ab'.repeat(32)
 const snapshot = { name: 'Sensor', nodes: [{ id: 'mcu', position: { x: 10, y: 20 }, block: { name: 'MCU', function: 'Control', model: 'Generic', ports: [{ id: 'power', label: 'Power', protocol: 'POWER', direction: 'in' }], properties: { voltage: '3.3 V', password: 'private', nested: { api_key: 'private', image: 'data:image/png;base64,x', range: '0..10' } }, image: 'https://example.com/image.png' } }], edges: [] }
@@ -75,6 +76,24 @@ test('network, timeout, truncated and empty results never count as successful an
   await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => { throw new DOMException('timeout', 'TimeoutError') } }), /aiTimeout/)
   await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => { throw new Error('secret network details') } }), /aiProviderError/)
   for (const choice of [{ finish_reason: 'length', message: { content: 'truncated' } }, { message: { content: '' } }]) await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => ({ ok: true, json: async () => ({ choices: [choice] }) }) }), /aiOutputLimit|aiProviderError/)
+})
+test('provider streams and persisted results have independent byte bounds and safe usage integers', async () => {
+  const exact = 'ñ'.repeat(aiResponseBytes / 2)
+  assert.equal(Buffer.byteLength(boundedResult({ response: exact }).response), aiResponseBytes)
+  assert.throws(() => boundedResult({ response: exact + 'a' }), /aiProviderTooLarge/)
+  assert.deepEqual(boundedResult({ response: 'OK', usage: { prompt_tokens: -1, completion_tokens: 1.5, total_tokens: Number.MAX_SAFE_INTEGER + 1, private: 'ignored' } }).usage, {})
+  const valid = { choices: [{ message: { content: 'OK' } }], usage: { total_tokens: 42 } }
+  assert.deepEqual(await callDeepSeek(baseConfig, [], { fetchImpl: async () => new Response(JSON.stringify(valid)) }), { response: 'OK', usage: { total_tokens: 42 } })
+  let cancelled = 0
+  await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => new Response(new ReadableStream({ cancel() { cancelled++ } }), { headers: { 'content-length': String(2 * aiResponseBytes + 1) } }) }), /aiProviderTooLarge/)
+  assert.equal(cancelled, 1)
+  await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(aiResponseBytes)); controller.enqueue(new Uint8Array(aiResponseBytes + 1)) },
+    cancel() { cancelled++ },
+  })) }), /aiProviderTooLarge/)
+  assert.equal(cancelled, 2)
+  await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: exact + 'a' } }] })) }), /aiProviderTooLarge/)
+  await assert.rejects(callDeepSeek(baseConfig, [], { fetchImpl: async () => new Response('{invalid') }), /aiProviderError/)
 })
 
 async function fixture(t, provider) {

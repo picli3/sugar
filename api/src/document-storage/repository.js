@@ -1,4 +1,5 @@
 export const syncJobMetadataBytes = 1024
+export const analysisStorageBytes = alias => ['snapshot','snapshot_hash','action','focus','language','provider','model','response','usage'].map(field => `COALESCE(octet_length(${alias}.${field}::text),0)::bigint`).join('+') + '+1024'
 export function createDocumentStorageRepository(q) {
   const lock = tx => tx("SELECT pg_advisory_xact_lock(hashtext('sugar:document-storage'))")
   const config = async (tx = q) => {
@@ -10,13 +11,20 @@ export function createDocumentStorageRepository(q) {
     const syncBytes = `octet_length(s.yaml)::bigint+COALESCE(octet_length(s.target_repository),0)+COALESCE(octet_length(s.target_branch),0)+${syncJobMetadataBytes}`
     const syncRows = ownerId ? `SELECT 'sync',${syncBytes} FROM sync_jobs s JOIN projects p ON p.id=s.record_id WHERE s.kind='project' AND p.created_by=$1
       UNION ALL SELECT 'sync',${syncBytes} FROM sync_jobs s JOIN blocks b ON b.id=s.record_id WHERE s.kind='block' AND b.owner_id=$1` : `SELECT 'sync',${syncBytes} FROM sync_jobs s`
+    const aiFilter = ownerId ? 'WHERE p.created_by=$1' : '', callFilter = ownerId ? 'WHERE CASE WHEN c.project_id IS NULL THEN c.user_id ELSE p.created_by END=$1' : ''
+    const calls = `FROM ai_calls c LEFT JOIN projects p ON p.id=c.project_id ${callFilter}`
     return (await tx(`SELECT count(*) FILTER(WHERE kind='project') AS projects,count(*) FILTER(WHERE kind='block') AS blocks,
-      count(*) FILTER(WHERE kind='revision') AS revisions,count(*) FILTER(WHERE kind='sync') AS sync_jobs,COALESCE(sum(bytes),0) AS bytes FROM (
+      count(*) FILTER(WHERE kind='revision') AS revisions,count(*) FILTER(WHERE kind='sync') AS sync_jobs,
+      count(*) FILTER(WHERE kind='analysis') AS analyses,count(*) FILTER(WHERE kind='ai_call') AS ai_calls,
+      COALESCE(sum(bytes) FILTER(WHERE kind='ai_reservation'),0) AS ai_reserved_bytes,COALESCE(sum(bytes),0) AS bytes FROM (
       SELECT 'project' AS kind,octet_length(p.yaml)::bigint+octet_length(p.name) AS bytes FROM projects p ${projectFilter}
       UNION ALL SELECT 'block',octet_length(b.name) FROM blocks b ${blockFilter}
       UNION ALL SELECT 'revision',octet_length(r.yaml)::bigint+octet_length(r.summary) FROM project_revisions r JOIN projects p ON p.id=r.project_id ${projectFilter}
       UNION ALL SELECT 'revision',octet_length(v.yaml)::bigint+octet_length(v.summary) FROM block_versions v JOIN blocks b ON b.id=v.block_id ${blockFilter}
       UNION ALL ${syncRows}
+      UNION ALL SELECT 'analysis',${analysisStorageBytes('a')} FROM project_analyses a LEFT JOIN projects p ON p.id=a.project_id ${aiFilter}
+      UNION ALL SELECT 'ai_call',1024+octet_length(c.payload_hash)::bigint ${calls}
+      UNION ALL SELECT 'ai_reservation',c.storage_bytes ${calls}
       ) retained`, ownerId ? [ownerId] : [])).rows[0]
   }
   return {

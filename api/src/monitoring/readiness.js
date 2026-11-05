@@ -7,11 +7,13 @@ export const readinessQuery = `SELECT value,
   (SELECT value FROM image_storage_config WHERE id=true) AS image_limits,
   (SELECT version FROM image_storage_config WHERE id=true) AS image_version,
   (SELECT value FROM document_storage_config WHERE id=true) AS document_limits,
-  (SELECT version FROM document_storage_config WHERE id=true) AS document_version
+  (SELECT version FROM document_storage_config WHERE id=true) AS document_version,
+  EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='ai_calls'::regclass AND attname='storage_bytes'
+    AND atttypid='int8'::regtype AND attnotnull AND NOT attisdropped) AS ai_storage_ready
   FROM settings WHERE key='schema_version'`
 export const databaseProbe = q => async () => {
   const result = await q({ text: readinessQuery, query_timeout: 1000 }), row = result.rows?.[0]
-  if (row?.value !== schemaVersion || !Number.isSafeInteger(row.image_version) || row.image_version < 1 || !Number.isSafeInteger(row.document_version) || row.document_version < 1) return false
+  if (row?.value !== schemaVersion || !Number.isSafeInteger(row.image_version) || row.image_version < 1 || !Number.isSafeInteger(row.document_version) || row.document_version < 1 || row.ai_storage_ready !== true) return false
   try { validateImageStorage(row.image_limits); validateDocumentStorage(row.document_limits); return true } catch { return false }
 }
 

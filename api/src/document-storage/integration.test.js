@@ -14,6 +14,7 @@ import { createBlockService } from '../blocks/service.js'
 import { initImageStorage,createImageStorage } from '../images/quotas.js'
 import { replaceEmbeddedImages } from '../images.js'
 import { stringify } from '../model.js'
+import { initAiDb } from '../ai.js'
 const url=process.env.API_TEST_DATABASE_URL
 const block={name:'Fixture ñ',function:'Measure',category:'fixture',ports:[{id:'p',label:'P',protocol:'IO',direction:'in'}]},blockYaml=stringify(block),projectYaml=stringify({name:'Fixture',nodes:[],edges:[]})
 test('document quotas coordinate content writes, charge owners, retain history and roll back dependent writes', {skip:!url},async t=>{
@@ -31,7 +32,7 @@ test('document quotas coordinate content writes, charge owners, retain history a
   await q('CREATE TABLE project_settings_history(id bigserial PRIMARY KEY,project_id uuid,author_id uuid,before jsonb,after jsonb,created_at timestamptz DEFAULT now())')
   await q('ALTER TABLE projects ADD COLUMN share_token text,ADD COLUMN share_expires_at timestamptz')
   await q('CREATE TABLE images(id uuid PRIMARY KEY,name text,mime text,data bytea NOT NULL,owner_id uuid,scope text)')
-  await initDocumentStorage(q);await initImageStorage(q)
+  await initAiDb(q);await initDocumentStorage(q);await initImageStorage(q)
   const storage=createDocumentStorage({repository:createDocumentStorageRepository(q),transaction}),otherStorage=createDocumentStorage({repository:createDocumentStorageRepository(q),transaction}),imageStorage=createImageStorage({q,transaction})
   const a={id:crypto.randomUUID(),role:'dev'},b={id:crypto.randomUUID(),role:'dev'},root={id:crypto.randomUUID(),role:'Admin'}
   const enqueue=async(_kind,id,revision,yaml,tx,target)=>tx('INSERT INTO sync_jobs(id,record_id,revision,yaml,target_repository,target_branch) VALUES($1,$2,$3,$4,$5,$6)',[crypto.randomUUID(),id,revision,yaml,target?.repository,target?.branch])
