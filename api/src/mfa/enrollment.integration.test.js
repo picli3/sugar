@@ -74,7 +74,10 @@ test('confirmed MFA enrollment preserves only its current session and closes pas
   const results = await Promise.allSettled([confirm(pending, await code(pending)), confirm(pending, await code(pending))])
   assert.equal(results.filter(r => r.status === 'fulfilled').length, 1)
   assert.equal(results.filter(r => r.status === 'rejected' && r.reason.status === 401).length, 1)
-  const codes = results.find(r => r.status === 'fulfilled').value.recoveryCodes
+  const result = results.find(r => r.status === 'fulfilled').value
+  const codes = result.recoveryCodes, previousSid = a.sessionId
+  a.sessionId = result.session.id
+  assert.equal(await sessions.user(previousSid, a.userId), undefined)
   assert.equal(codes.length, 10); assert.equal(new Set(codes).size, 10)
   assert.equal((await state()).enabled, true); assert.equal((await state()).pending_box, null)
   for (const value of [pending.secret, ...codes]) assert.equal(JSON.stringify(await state()).includes(value), false)

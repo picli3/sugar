@@ -123,3 +123,10 @@ html,body,#app{height:100%;overflow:hidden}
 .block-color-inputs input[type="text"] { flex: 1; min-width: 0; margin-top: 0; }
 .block-color-inputs button { flex: none; }
 .project-pagination{padding:0 48px 24px}@media(max-width:1100px){.project-pagination{padding-left:30px;padding-right:30px}}@media(max-width:800px){.project-pagination{padding-left:20px;padding-right:20px}}
+
+.mfa-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.mfa-check { display: flex; align-items: flex-start; gap: .6rem; }
+.mfa-check input[type="checkbox"] { width: auto; flex: none; margin-top: .2rem; }
+.mfa-codes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: .5rem; margin: 1rem 0; }
+.mfa-codes code { display: block; padding: .6rem; background: var(--surface2); border-radius: .4rem; overflow-wrap: anywhere; user-select: all; }
+.mfa-settings input { min-width: 0; }

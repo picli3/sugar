@@ -23,6 +23,7 @@ export function createAuthService({ users, sessions, secret, runCredential = tas
     return { user, sessionId }
   }
   return {
+    signSession: session => jwt.sign({ id: session.userId, sid: session.id }, secret, { algorithm: 'HS256', expiresIn: sessionLifetime }),
     async login(input) {
       const { email, password } = loginInput(input)
       return runCredential(async () => {

@@ -3,7 +3,7 @@ import { error } from '../shared/http.js'
 import { generateSecret, matchTotp, enrollmentUri } from './totp.js'
 import { generateRecoveryCodes } from './recovery.js'
 import { attemptWindow, recordFailure } from './proofs.js'
-import { lockCurrentAccount, validId } from './accounts.js'
+import { lockCurrentAccount, validId, rotateMfaSession } from './accounts.js'
 
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
 const unwrap = result => { if (result.status) error(result.status, result.message); return result.value }
@@ -48,10 +48,9 @@ export function createMfaEnrollment({ transaction, secretBox }) {
           pending_box=NULL,pending_id=NULL,pending_expires_at=NULL,pending_auth_version=NULL,
           challenge_hash=NULL,challenge_expires_at=NULL,challenge_auth_version=NULL,failures=0,failures_since=$4 WHERE user_id=$1`, [userId, step, recovery.hashes, now])
         const version = (await tx('UPDATE users SET auth_version=auth_version+1 WHERE id=$1 RETURNING auth_version', [userId])).rows[0].auth_version
-        await tx('UPDATE user_sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL', [userId, sessionId])
-        await tx('UPDATE user_sessions SET auth_version=$3,mfa_verified=true WHERE user_id=$1 AND id=$2', [userId, sessionId, version])
+        const session = await rotateMfaSession(tx, userId, version, true, now)
         // Plain codes are returned once, after COMMIT, and never stored in history.
-        return { value: { recoveryCodes: recovery.codes } }
+        return { value: { recoveryCodes: recovery.codes, session } }
       }))
     },
   }

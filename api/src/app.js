@@ -108,7 +108,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
 
   app.post('/api/me/password', controls.credentials)
   app.post('/api/users', controls.credentials)
-  registerMfaRoutes(app, { mfa, gate: controls.credentials })
+  registerMfaRoutes(app, { mfa, gate: controls.credentials, auth, sessionSecure })
   registerSessionRoutes(app, auth)
   registerAccountEmailRoutes(app, { recovery, gate: [controls.credentials, controls.emailChange] })
   registerMailRoutes(app, { mail, gate: controls.credentials })

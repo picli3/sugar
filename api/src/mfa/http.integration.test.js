@@ -52,10 +52,12 @@ test('MFA HTTP enrolls only confirmed Admins, withholds sessions until verificat
   proof.code = hotp(decodeSecret(setup.body.secret), Math.floor(now / 30_000))
   const confirmed = await req('/me/mfa/confirm', proof, first.cookie)
   assert.equal(confirmed.status, 200); assert.equal(confirmed.body.recoveryCodes.length, 10)
-  const codes = confirmed.body.recoveryCodes
+  const codes = confirmed.body.recoveryCodes, currentCookie = confirmed.cookie
+  assert.notEqual(currentCookie, first.cookie)
+  assert.equal((await req('/me', null, first.cookie)).status, 401)
   assert.equal((await req('/me', null, copy.cookie)).status, 401)
-  assert.equal((await req('/me', null, first.cookie)).status, 200)
-  const state = (await req('/me/mfa', null, first.cookie)).body
+  assert.equal((await req('/me', null, currentCookie)).status, 200)
+  const state = (await req('/me/mfa', null, currentCookie)).body
   assert.deepEqual(state, { enabled: true, recoveryCodesRemaining: 10, keyAvailable: true, canEnroll: false })
   const pending = await login()
   assert.equal(pending.status, 202); assert.equal(pending.cookie, 'session=')
@@ -77,10 +79,13 @@ test('MFA HTTP enrolls only confirmed Admins, withholds sessions until verificat
   const fresh = await req('/me/mfa/recovery-codes', { currentPassword: password, code: codes[2], recovery: true }, recovered.cookie, 1)
   assert.equal(fresh.status, 200); assert.equal(fresh.body.recoveryCodes.length, 10)
   assert.equal((await req('/me', null, signed.cookie)).status, 401)
-  assert.equal((await req('/me', null, recovered.cookie, 1)).status, 200)
-  assert.equal((await req('/me/mfa/disable', { currentPassword: password, code: codes[3], recovery: true }, recovered.cookie, 1)).status, 400)
-  assert.equal((await req('/me/mfa/disable', { currentPassword: password, code: fresh.body.recoveryCodes[0], recovery: true }, recovered.cookie, 1)).status, 200)
-  assert.deepEqual((await req('/me/mfa', null, recovered.cookie, 1)).body, { enabled: false, recoveryCodesRemaining: 0, keyAvailable: false, canEnroll: false })
+  assert.equal((await req('/me', null, recovered.cookie, 1)).status, 401)
+  assert.equal((await req('/me', null, fresh.cookie, 1)).status, 200)
+  assert.equal((await req('/me/mfa/disable', { currentPassword: password, code: codes[3], recovery: true }, fresh.cookie, 1)).status, 400)
+  const disabledReply = await req('/me/mfa/disable', { currentPassword: password, code: fresh.body.recoveryCodes[0], recovery: true }, fresh.cookie, 1)
+  assert.equal(disabledReply.status, 200)
+  assert.equal((await req('/me', null, fresh.cookie, 1)).status, 401)
+  assert.deepEqual((await req('/me/mfa', null, disabledReply.cookie, 1)).body, { enabled: false, recoveryCodesRemaining: 0, keyAvailable: false, canEnroll: false })
   assert.equal((await login('admin@example.invalid', 1)).status, 200)
   // A single remaining backup must recover the account atomically, without
   // demanding an unavailable second code after signing in.

@@ -1,6 +1,6 @@
 import { error } from '../shared/http.js'
 import { generateRecoveryCodes } from './recovery.js'
-import { lockCurrentAccount, validId } from './accounts.js'
+import { lockCurrentAccount, validId, rotateMfaSession } from './accounts.js'
 import { attemptWindow, matchFactor, recordFailure } from './proofs.js'
 
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
@@ -25,9 +25,8 @@ export function createMfaManagement({ transaction, secretBox }) {
         challenge_hash=NULL,challenge_expires_at=NULL,challenge_auth_version=NULL,failures=0,failures_since=$5 WHERE user_id=$1`,
       [userId, action === 'regenerate', fresh ? matched.lastStep : -1, fresh ? fresh.hashes : [], now])
       const version = (await tx('UPDATE users SET auth_version=auth_version+1 WHERE id=$1 RETURNING auth_version', [userId])).rows[0].auth_version
-      await tx('UPDATE user_sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL', [userId, sessionId])
-      await tx('UPDATE user_sessions SET auth_version=$3,mfa_verified=$4 WHERE user_id=$1 AND id=$2', [userId, sessionId, version, action === 'regenerate'])
-      return { value: fresh ? { recoveryCodes: fresh.codes } : { enabled: false } }
+      const session = await rotateMfaSession(tx, userId, version, action === 'regenerate', now)
+      return { value: fresh ? { recoveryCodes: fresh.codes, session } : { enabled: false, session } }
     })
     if (result.status) error(result.status, result.message)
     return result.value
