@@ -80,6 +80,7 @@ export function createAccessControls({ secret, config = limitsConfig(), clock = 
       spend('mfa:ip:' + digest(clientNetwork(req.ip)), config.loginIp, minute)
       if (typeof req.body?.challenge === 'string' && /^[A-Za-z0-9_-]{43}$/.test(req.body.challenge)) spend('mfa:challenge:' + digest(req.body.challenge), 10, accountWindow)
     }),
+    github: middleware(req => { spend('github:global', 120, minute); spend('github:' + digest(req.user.id), 30, accountWindow) }),
     credentials: middleware(req => { spend('credentials:' + digest(req.user.id), config.credentials, accountWindow) }),
     registration: middleware(req => {
       const verify = req.path.toLowerCase().replace(/\/$/, '').endsWith('/verify')

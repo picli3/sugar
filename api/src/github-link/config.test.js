@@ -10,9 +10,10 @@ test('GitHub user authorization is optional, off by default and requires indepen
   assert.equal(githubLinkConfig({}).available, false)
   assert.equal(githubLinkConfig({}).connectEnabled, false)
   const env = { PUBLIC_ORIGIN: 'https://sugar.example.invalid', GITHUB_CLIENT_ID: 'Iv1.synthetic', GITHUB_CLIENT_SECRET: 'synthetic-secret', GITHUB_USER_ENCRYPTION_KEY: '12'.repeat(32), GITHUB_CONNECT_ENABLED: 'true' }
+  assert.equal(githubLinkConfig({...env,GITHUB_APP_SLUG:'sugar-fixture'}).installationUrl,'https://github.com/apps/sugar-fixture/installations/new');
   assert.equal(githubLinkConfig(env).available, true); assert.equal(githubLinkConfig(env).connectEnabled, true)
   for (const change of [{ GITHUB_CLIENT_SECRET: '' },{ GITHUB_USER_ENCRYPTION_KEY: '' },{ PUBLIC_ORIGIN: 'http://public.example.invalid' }]) assert.equal(githubLinkConfig({ ...env, ...change }).available, false)
-  for (const change of [{ GITHUB_CONNECT_ENABLED: 'yes' },{ GITHUB_CLIENT_ID: '../private' },{ GITHUB_CLIENT_SECRET: 'private\nsecret' }]) assert.throws(() => githubLinkConfig({ ...env, ...change }), { code: 'SECRET_CONFIG' })
+  for (const change of [{ GITHUB_APP_SLUG: 'private/redirect' },{ GITHUB_CONNECT_ENABLED: 'yes' },{ GITHUB_CLIENT_ID: '../private' },{ GITHUB_CLIENT_SECRET: 'private\nsecret' }]) assert.throws(() => githubLinkConfig({ ...env, ...change }), { code: 'SECRET_CONFIG' })
   for (const name of ['AI_ENCRYPTION_KEY','MAIL_ENCRYPTION_KEY','MFA_ENCRYPTION_KEY']) assert.throws(() => loadSecretFiles({ ...env, [name]: env.GITHUB_USER_ENCRYPTION_KEY }), { code: 'SECRET_CONFIG' })
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sugar-github-file-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }))
   const secret = path.join(dir, 'private-input'); fs.writeFileSync(secret, env.GITHUB_CLIENT_SECRET + '\n', { mode: 0o600 })

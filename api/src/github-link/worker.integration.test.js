@@ -68,6 +68,8 @@ test('scoped GitHub queue binds authorizations, leases accounts across replicas,
   assert.deepEqual(writes[0].target,{installationId:'7',repositoryId:'8',repository:'fixture/repo',branch:'design',allowPublic:false})
   // A changed grant cannot re-arm an older capability, even at the same human target.
   await enqueue('project',projectId,3,'name: old grant',q,{repository:'fixture/repo',branch:'design'})
+  await q('UPDATE projects SET deleted_at=now() WHERE id=$1',[projectId]);await integration.worker.tick();assert.equal((await job(3)).status,'pending');assert.equal(writes.length,1)
+  await q('UPDATE projects SET deleted_at=NULL WHERE id=$1',[projectId])
   grant = await prepare(); await transaction(tx => integration.targets.save(tx,projectId,grant))
   await integration.worker.tick(); assert.equal((await job(3)).status,'blocked'); assert.equal(writes.length,1)
   const service = createProjectSyncService({query:q,projects:{get:async (_id,user,options)=>{assert.equal(options.ownerOnly,true);return project}},targets:integration.targets,synchronize:async()=>{}})

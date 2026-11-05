@@ -1,4 +1,5 @@
 FROM sugar-privilege-api
+COPY api/test-support/github-mock.mjs /checks/github-mock.mjs
 COPY api/test-support/deepseek-mock.mjs /checks/deepseek-mock.mjs
 COPY deploy/containers/verify.mjs /checks/verify.mjs
 COPY deploy/containers/legacy-check.mjs /checks/legacy-check.mjs

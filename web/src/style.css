@@ -136,3 +136,9 @@ html,body,#app{height:100%;overflow:hidden}
 .skip-link{position:absolute;left:12px;top:-60px;z-index:1000;padding:10px 14px;border-radius:9px;background:var(--surface);color:var(--text);border:2px solid var(--accent);font-weight:700;text-decoration:none}
 .skip-link:focus{top:12px}
 #main-content:focus{outline:none}
+
+.github-project-target { margin-block: 1.2rem; padding-block: 1rem; border-block: 1px solid var(--border); }
+.github-check { display: flex; align-items: flex-start; gap: .6rem; margin-block: 1rem; }
+.github-check input { flex: 0 0 auto; width: auto; margin-top: .25rem; }
+.github-current { overflow-wrap: anywhere; }
+.github-settings a { overflow-wrap: anywhere; color: var(--accent); }

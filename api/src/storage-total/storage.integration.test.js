@@ -113,6 +113,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
   // GitHub reserves both bounded credential/state slots BEFORE OAuth. Once
   // admitted, token refresh/settlement does not grow usage even at a closed cap.
   const beforeGithub = (await storage.configuration()).usage.config
+  await assert.rejects(scoped('INSERT INTO github_project_grants VALUES($1)', [crypto.randomUUID()]), { code: 'PZ001' })
   await assert.rejects(scoped('INSERT INTO github_links VALUES($1)', [crypto.randomUUID()]), { code: 'PZ001' })
   await configure({ configBytes: Number(beforeGithub) + 10240, platformBytes: 1_000_000 })
   await scoped('INSERT INTO github_links VALUES($1)', [crypto.randomUUID()])

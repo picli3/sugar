@@ -1,3 +1,4 @@
+import { GithubFailure, githubFailureCodes } from '../github-link/protocol.js'
 import { reportFailure } from './logging.js'
 export const asyncRoute = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
 export const error = (status, message) => { throw Object.assign(new Error(message), { status }) }
@@ -8,6 +9,7 @@ export const requiredText = (value, label) => {
 
 export function errorHandler(err, _req, res, _next) {
   if (err.status === 429) res.set('Retry-After', String(err.retryAfter || 1)).set('Cache-Control', 'private, no-store')
+  if (err instanceof GithubFailure && githubFailureCodes.has(err.code)) return res.status(err.status).json({ code: err.code, error: err.code })
   if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un registro con ese nombre o identificador' })
   if (err.code === '22P02') return res.status(400).json({ error: 'Identificador inválido' })
   if (err.code === 'PZ001') return res.status(409).json({ code: 'storageQuotaExceeded', error: 'Cuota de almacenamiento agotada; contacta al administrador / Storage quota exhausted; contact the administrator' })

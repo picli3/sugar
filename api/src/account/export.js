@@ -8,14 +8,15 @@ const readme = `Sugar — exportación de cuenta / account export
 
 account.json        Datos de la cuenta, sesiones (sin identificadores) / account data, sessions (no identifiers)
 collaborations.json Proyectos ajenos en los que colaboras (sólo metadatos) / other people's projects you collaborate on (metadata only)
+github.json         Cuenta GitHub y destinos propios, sin credenciales / own GitHub account and targets, no credentials
 categories.json     Tus categorías / your categories
 projects/<id>/      Tus proyectos: current.yaml, revisions/<n>.yaml, revisions.json, settings-history.json, members.json, analyses/<id>.json
 blocks/<id>/        Tus bloques personales: block.json, versions/<n>.yaml, versions.json
 images/             Tus imágenes personales (images.json + archivos) / your personal images
 
 "trashed_at" marca elementos en la papelera / marks items in the trash.
-No incluye contraseñas, sesiones activas, secretos MFA, enlaces privados ni correos de otras personas, salvo los colaboradores que invitaste.
-Excludes passwords, active session identifiers, MFA secrets, private share links and other people's emails, except collaborators you invited.
+No incluye contraseñas, sesiones activas, secretos MFA o GitHub, enlaces privados ni correos de otras personas, salvo los colaboradores que invitaste.
+Excludes passwords, active session identifiers, MFA or GitHub secrets, private share links and other people's emails, except collaborators you invited.
 `
 
 // Exports only what the account owns or is shown about itself, read in one consistent snapshot.
@@ -39,6 +40,11 @@ export function createAccountExport({ transaction, maxConcurrent = 2 }) {
         const sessions = await rows('SELECT created_at,expires_at,revoked_at FROM user_sessions WHERE user_id=$1 ORDER BY created_at', [user.id])
         await zip.add('README.txt', readme, now)
         await zip.add('account.json', json({ exported_at: now.toISOString(), account, sessions }), now)
+        await zip.add('github.json', json({
+          account: (await rows('SELECT github_user_id,github_login,created_at,updated_at FROM github_links WHERE user_id=$1 AND access_box IS NOT NULL', [user.id]))[0] || null,
+          destinations: await rows(`SELECT g.project_id,g.installation_id,g.repository_id,g.repository,g.branch,g.allow_public,g.created_at
+            FROM github_project_grants g JOIN projects p ON p.id=g.project_id WHERE p.created_by=$1 AND g.owner_id=$1 ORDER BY g.project_id`, [user.id]),
+        }), now)
         await zip.add('collaborations.json', json(await rows(`SELECT m.project_id,p.name,m.role,m.created_at FROM project_members m
           JOIN projects p ON p.id=m.project_id WHERE m.user_id=$1 AND p.deleted_at IS NULL ORDER BY m.created_at,m.project_id`, [user.id])), now)
         await zip.add('categories.json', json(await rows(`SELECT id,slug,name,parent_id,icon,deleted_at AS trashed_at FROM block_categories

@@ -39,7 +39,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
         'El resultado se guarda en el proyecto y lo pueden ver quienes tienen acceso a él. No escribas en tus diagramas información que no quieras compartir con el proveedor.',
       ] },
       { id: 'third', heading: 'Otros servicios externos', paragraphs: [], items: [
-        'GitHub: sólo si configuras la sincronización de un proyecto; su YAML se publica en el repositorio y la rama que elijas.',
+        'GitHub: puedes conectar tu cuenta; guardamos sus tokens cifrados en el servidor. Sólo el propietario autoriza el repositorio y la rama de cada proyecto; allí se envían sus revisiones YAML. Desconectar elimina los tokens locales y bloquea nuevos envíos. Los archivos ya publicados en GitHub se conservan.',
         'Correo: el proveedor SMTP configurado por el administrador envía los mensajes de verificación y recuperación de cuenta.',
         'Sugar no usa analítica, publicidad ni rastreadores.',
       ] },
@@ -92,7 +92,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
         'The result is stored in the project and can be seen by everyone with access to it. Do not put information in your diagrams that you do not want to share with the provider.',
       ] },
       { id: 'third', heading: 'Other external services', paragraphs: [], items: [
-        'GitHub: only if you set up synchronization for a project; its YAML is published to the repository and branch you choose.',
+        'GitHub: you can connect your account; its tokens are stored encrypted on the server. Only the project owner authorizes its repository and branch; YAML revisions are sent there. Disconnecting removes local tokens and blocks new synchronization. Files already published on GitHub are retained.',
         'Email: the SMTP provider configured by the administrator sends verification and account recovery messages.',
         'Sugar does not use analytics, advertising or trackers.',
       ] },

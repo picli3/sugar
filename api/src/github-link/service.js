@@ -56,7 +56,7 @@ export function createGithubLinkService({ repository, users, config, client, run
     withCredential,
     async status(user) {
       const link = await repository.status(user.id)
-      return { configured: config.available, canConnect: config.available && config.connectEnabled && ['dev','Admin'].includes(user.role),
+      return { eligible: ['dev','Admin'].includes(user.role), installationUrl: config.available ? config.installationUrl || null : null, configured: config.available, canConnect: config.available && config.connectEnabled && ['dev','Admin'].includes(user.role),
         connected: link?.connected === true, canDisconnect: !!link, connectionId: link?.connected ? link.id : null,
         account: link?.connected ? { id: link.github_user_id, login: link.github_login } : null, expiresAt: link?.expires_at || null,
         needsReauthorization: !!link?.connected && (link.client_id !== config.clientId || !!link.refresh_expires_at && link.refresh_expires_at.getTime() <= clock() || !!link.refresh_started_at && link.refresh_started_at.getTime() + 60000 < clock()) }

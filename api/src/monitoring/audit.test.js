@@ -73,3 +73,11 @@ test('an aborted connection records an attempt once without claiming a successfu
   assert.equal(records[0].result, 'aborted')
   assert.equal(records[0].status, null)
 })
+
+test('GitHub connection audit records only the authenticated actor and a fixed operation', () => {
+  const records=[],audit=securityAudit({write:event=>records.push(event)})
+  for (const operation of ['authorize','complete','disconnect']) finish(audit,{path:'/me/github/'+operation,method:'POST',user:{id:actor}})
+  assert.deepEqual(records.map(e=>e.operation),['auth.github_begin','auth.github_complete','auth.github_disconnect'])
+  assert.equal(JSON.stringify(records).includes('synthetic-private'),false)
+  assert.ok(records.every(e=>!Object.hasOwn(e,'resource')))
+})

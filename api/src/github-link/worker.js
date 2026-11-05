@@ -1,5 +1,5 @@
 import { failureCode, reportFailure } from '../shared/logging.js'
-const transient = new Set(['GITHUB_TIMEOUT','GITHUB_UNAVAILABLE','GITHUB_RATE_LIMITED','GITHUB_RESPONSE_INVALID','GITHUB_RESPONSE_TOO_LARGE','GITHUB_REFRESH_IN_PROGRESS','UNEXPECTED_ERROR','ECONNREFUSED','ETIMEDOUT'])
+const transient = new Set(['GITHUB_BUSY','GITHUB_TIMEOUT','GITHUB_UNAVAILABLE','GITHUB_RATE_LIMITED','GITHUB_RESPONSE_INVALID','GITHUB_RESPONSE_TOO_LARGE','GITHUB_REFRESH_IN_PROGRESS','UNEXPECTED_ERROR','ECONNREFUSED','ETIMEDOUT'])
 export function createGithubSynchronizer({ q, links, client, config }) {
   let running = false
   const outcome = async (query, job, error) => {
