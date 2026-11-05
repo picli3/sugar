@@ -9,3 +9,11 @@ condition = "AND"
 paths = ['''^\.github/workflows/deploy\.yml$''', '''^deploy/backup/test_backup\.py$''']
 regexTarget = "secret"
 regexes = ['''^(0123456789abcdef){1,4}$''']
+
+[[allowlists]]
+description = "Public RFC 4226 Appendix D seed encoded as Base32, only in three MFA tests"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^api/src/mfa/totp\.test\.js$''', '''^api/src/mfa/recovery\.test\.js$''', '''^api/src/mfa/migration\.integration\.test\.js$''']
+regexTarget = "secret"
+regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''']

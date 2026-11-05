@@ -26,6 +26,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     project_members: 'project_id uuid,user_id uuid,role text', user_sessions: 'id uuid,user_id uuid',
     image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
+    mfa_credentials: "secret_box jsonb,pending_box jsonb,recovery_hashes text[] NOT NULL DEFAULT '{}',challenge_hash text",
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
   }
   for (const [table, columns] of Object.entries(definitions)) await q(`CREATE TABLE ${table}(${columns})`)
@@ -97,6 +98,16 @@ test('total logical quota serializes writers and rolls back over-budget transact
   const before = BigInt((await storage.configuration()).usage.config)
   await scoped('INSERT INTO user_sessions VALUES($1,$2)', [crypto.randomUUID(), crypto.randomUUID()])
   assert.ok(BigInt((await storage.configuration()).usage.config) > before)
+  // MFA is bounded per account and must not lock recovery out at full capacity.
+  const beforeMfa = (await storage.configuration()).usage.config
+  await scoped('INSERT INTO mfa_credentials(secret_box,recovery_hashes) VALUES($1,$2)', [{ v: 1, data: 'synthetic-ciphertext' }, ['a'.repeat(64)]])
+  const duringMfa = (await storage.configuration()).usage.config
+  assert.ok(BigInt(duringMfa) > BigInt(beforeMfa) + 256n)
+  assert.equal(duringMfa, (await q(usageSql)).rows[0].config)
+  await scoped('UPDATE mfa_credentials SET recovery_hashes=ARRAY[]::text[],challenge_hash=$1', ['b'.repeat(64)])
+  assert.equal((await storage.configuration()).usage.config, (await q(usageSql)).rows[0].config)
+  await scoped('DELETE FROM mfa_credentials')
+  assert.equal((await storage.configuration()).usage.config, beforeMfa)
   await assert.rejects(scoped('INSERT INTO project_members VALUES($1,$2,$3)', [crypto.randomUUID(),crypto.randomUUID(),'reader']), { code: 'PZ001' })
   // Maintenance writes are counted but not rejected.
   await q('INSERT INTO project_members VALUES($1,$2,$3)', [crypto.randomUUID(),crypto.randomUUID(),'reader'])

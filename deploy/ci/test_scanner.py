@@ -12,7 +12,12 @@ class ScannerTests(unittest.TestCase):
     def test_fixture_allowlist_requires_both_path_and_exact_value(self):
         cases = [('.github/workflows/deploy.yml', '0123456789abcdef' * 4, 0),
                  ('fixture.txt', '0123456789abcdef' * 4, 1),
-                 ('.github/workflows/deploy.yml', hashlib.sha256(b'synthetic fixture only').hexdigest(), 1)]
+                 ('.github/workflows/deploy.yml', hashlib.sha256(b'synthetic fixture only').hexdigest(), 1),
+                 ('api/src/mfa/totp.test.js', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 0),
+                 ('api/src/mfa/recovery.test.js', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 0),
+                 ('api/src/mfa/migration.integration.test.js', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 0),
+                 ('api/src/mfa/service.js', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 1),
+                 ('api/src/mfa/totp.test.js', hashlib.sha256(b'different synthetic fixture').hexdigest(), 1)]
         for path, value, expected in cases:
             with self.subTest(path=path, expected=expected), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)

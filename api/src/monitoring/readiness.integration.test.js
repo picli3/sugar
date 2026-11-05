@@ -36,6 +36,7 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
     users: 'email text,password_hash text,role text', project_members: 'project_id uuid,user_id uuid,role text',
     user_sessions: 'id uuid,user_id uuid', image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
+    mfa_credentials: "secret_box jsonb,pending_box jsonb,recovery_hashes text[] NOT NULL DEFAULT '{}',challenge_hash text",
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
   })) await q(`CREATE TABLE ${table}(${columns})`)
   await ready(false)
