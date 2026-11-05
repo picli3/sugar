@@ -24,7 +24,9 @@ export const usageSql = `SELECT
     +(SELECT COALESCE(sum(octet_length(image_id::text)::bigint+octet_length(resource_kind)+octet_length(resource_id::text)),0) FROM image_references)
     +(SELECT COALESCE(sum(octet_length(email)::bigint+octet_length(token_hash)+octet_length(language)),0) FROM pending_registrations)
     +(SELECT COALESCE(sum(octet_length(kind)::bigint+octet_length(email)+octet_length(token_hash)+COALESCE(octet_length(old_token_hash),0)+COALESCE(octet_length(old_email),0)+COALESCE(octet_length(user_id::text),0)+octet_length(language)),0) FROM account_actions)
-    +(SELECT COALESCE(sum(256::bigint+COALESCE(octet_length(secret_box::text),0)+COALESCE(octet_length(pending_box::text),0)+octet_length(to_jsonb(recovery_hashes)::text)+COALESCE(octet_length(challenge_hash),0)),0) FROM mfa_credentials) AS config`
+    +(SELECT COALESCE(sum(256::bigint+COALESCE(octet_length(secret_box::text),0)+COALESCE(octet_length(pending_box::text),0)+octet_length(to_jsonb(recovery_hashes)::text)+COALESCE(octet_length(challenge_hash),0)),0) FROM mfa_credentials)
+    +(SELECT count(*)*8192::bigint FROM github_links)
+    +(SELECT count(*)*2048::bigint FROM github_oauth_states) AS config`
 
 const textBytes = field => `COALESCE(octet_length(value->>'${field}'),0)::bigint`
 const jsonBytes = field => `CASE WHEN value->'${field}' IS NULL OR value->'${field}'='null'::jsonb THEN 0 ELSE octet_length((value->'${field}')::text)::bigint END`
@@ -45,6 +47,7 @@ const sizes = {
   image_references: ['image_id','resource_kind','resource_id'].map(textBytes),
   pending_registrations: ['email','token_hash','language'].map(textBytes),
   account_actions: ['kind','email','token_hash','old_token_hash','old_email','user_id','language'].map(textBytes),
+  github_links: ['8192'], github_oauth_states: ['2048'],
   mfa_credentials: ['256', ...['secret_box','pending_box','recovery_hashes'].map(jsonBytes), textBytes('challenge_hash')],
 }
 const sizeCases = Object.entries(sizes).map(([table, fields]) => `WHEN '${table}' THEN ${fields.join('+')}`).join('\n      ')

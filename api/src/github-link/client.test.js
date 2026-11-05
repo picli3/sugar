@@ -89,3 +89,12 @@ test('catalog pagination is bounded and never silently returns more than its pol
   const client=createGithubClient({request:async url=>{count++;const page=Number(new URL(url).searchParams.get('page'));return response({total_count:1001,installations:Array.from({length:50},(_,i)=>({...installation,id:(page-1)*50+i+1}))})}})
   await assert.rejects(client.installations(token),{code:'GITHUB_CATALOG_TOO_LARGE'});assert.equal(count,20)
 })
+
+test('one monotonic budget covers all catalog pages even if wall clock moves backwards', async () => {
+  let calls = 0
+  const client = createGithubClient({ timeoutMs: 25, clock: () => -100000, request: async () => {
+    calls++; await new Promise(resolve => setTimeout(resolve, 10))
+    return response({ total_count: 1000, installations: Array.from({ length: 50 }, (_, i) => ({ ...installation, id: i + calls * 50 })) })
+  } })
+  await assert.rejects(client.installations(token), { code: 'GITHUB_TIMEOUT' }); assert.ok(calls <= 3)
+})

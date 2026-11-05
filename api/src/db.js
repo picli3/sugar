@@ -1,3 +1,4 @@
+import { initGithubLinkDb } from './github-link/migration.js'
 import { initSessionDb } from './auth/sessions.js'
 import { migrateImageAccess } from './images/migration.js'
 import { imageIds, recordImageReferences } from './images/references.js'
@@ -142,5 +143,6 @@ export async function initDb() {
   await initTrashDb(q)
   await initProfileDb(q)
   await initAccountClosureDb(q)
+  await initGithubLinkDb(q)
   await initTotalStorage(q, transaction)
 }

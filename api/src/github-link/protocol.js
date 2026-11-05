@@ -9,7 +9,7 @@ export const githubId = value => {
   return String(value)
 }
 export function userToken(value, refresh = false) {
-  if (typeof value !== 'string' || value.length > 512 || !(refresh ? /^ghr_[A-Za-z0-9_]{20,508}$/ : /^ghu_[A-Za-z0-9_]{20,508}$/).test(value)) throw githubError('GITHUB_USER_TOKEN_INVALID', 401)
+  if (typeof value !== 'string' || value.length > 512 || !(refresh ? /^ghr_[A-Za-z0-9_]{20,508}$/ : /^ghu_[A-Za-z0-9_]{20,508}$/).test(value)) throw githubError('GITHUB_USER_TOKEN_INVALID', 409)
   return value
 }
 export const stateHash = value => crypto.createHash('sha256').update('sugar:github:oauth:v1:' + value).digest('hex')

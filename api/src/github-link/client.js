@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks'
 import crypto from 'node:crypto'
 import { githubError, GithubFailure, githubId, userToken, tokenResult, githubCallbackUri } from './protocol.js'
 const version = '2026-03-10', maxBodyBytes = 4 * 1024 * 1024
@@ -7,10 +8,10 @@ const validBranch = value => typeof value === 'string' && value.length <= 256 &&
 
 // No configurable provider host, redirects, installation-token fallback or HTTP
 // retries. Only the future account-link/sync services may invoke this client.
-export function createGithubClient({ clientId, clientSecret, origin, request = fetch, timeoutMs = 10000, clock = Date.now }) {
+export function createGithubClient({ clientId, clientSecret, origin, request = fetch, timeoutMs = 10000, clock = Date.now, budgetClock = () => performance.now() }) {
   const configured = () => { if (typeof clientId !== 'string' || !/^[A-Za-z0-9_.-]{1,200}$/.test(clientId) || typeof clientSecret !== 'string' || !/^[\x21-\x7e]{1,256}$/.test(clientSecret)) throw githubError('GITHUB_CONFIG_REQUIRED', 503) }
-  async function call(url, { token, method = 'GET', body, basic = false, deadline = clock() + timeoutMs } = {}) {
-    const controller = new AbortController(), remaining = deadline - clock()
+  async function call(url, { token, method = 'GET', body, basic = false, deadline = budgetClock() + timeoutMs } = {}) {
+    const controller = new AbortController(), remaining = deadline - budgetClock()
     if (remaining <= 0) throw githubError('GITHUB_TIMEOUT', 504)
     let timer, reader, response
     const timed = new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(githubError('GITHUB_TIMEOUT', 504)) }, remaining) })
@@ -117,18 +118,18 @@ export function createGithubClient({ clientId, clientSecret, origin, request = f
       if (value.type !== 'User' || typeof value.login !== 'string' || !/^[A-Za-z0-9-]{1,39}$/.test(value.login)) throw githubError('GITHUB_RESPONSE_INVALID')
       return { id, login: value.login }
     },
-    async installations(token) { return (await pages('/user/installations', 'installations', token, clock() + timeoutMs)).map(installation) },
+    async installations(token) { return (await pages('/user/installations', 'installations', token, budgetClock() + timeoutMs)).map(installation) },
     async repositories(token, id) {
       if (!validId(id)) throw githubError('GITHUB_TARGET_INVALID', 400)
-      const deadline = clock() + timeoutMs, row = await pages('/user/installations', 'installations', token, deadline, item => String(item?.id) === id)
+      const deadline = budgetClock() + timeoutMs, row = await pages('/user/installations', 'installations', token, deadline, item => String(item?.id) === id)
       if (!row || !installation(row).writable) throw githubError('GITHUB_ACCESS_DENIED', 403)
       const owner = githubId(row.account.id)
       return (await pages(`/user/installations/${id}/repositories`, 'repositories', token, deadline)).map(repository).filter(repo => repo.ownerId === owner && repo.writable)
     },
-    authorize: (token, target) => authorize(token, target, clock() + timeoutMs),
+    authorize: (token, target) => authorize(token, target, budgetClock() + timeoutMs),
     async writeRevision(token, target, { id, revision, yaml }) {
       if (typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id) || !Number.isInteger(revision) || revision < 1 || revision > 2147483647 || typeof yaml !== 'string' || Buffer.byteLength(yaml) > 2_000_000) throw githubError('GITHUB_TARGET_INVALID', 400)
-      const deadline = clock() + timeoutMs, allowed = await authorize(token, target, deadline)
+      const deadline = budgetClock() + timeoutMs, allowed = await authorize(token, target, deadline)
       const path = `projects/${id}/revision-${revision}.yaml`, url = `https://api.github.com/repos/${allowed.repository}/contents/${path}`
       const existing = await call(url + '?ref=' + encodeURIComponent(allowed.branch), { token, deadline })
       if (existing.status !== 404) {

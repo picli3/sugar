@@ -27,6 +27,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     pending_registrations: 'email text,token_hash text,language text',
     mfa_credentials: "secret_box jsonb,pending_box jsonb,recovery_hashes text[] NOT NULL DEFAULT '{}',challenge_hash text",
+    github_links: 'id uuid', github_oauth_states: 'id uuid',
     account_actions: 'kind text,email text,token_hash text,old_token_hash text,old_email text,user_id uuid,language text',
   }
   for (const [table, columns] of Object.entries(definitions)) await q(`CREATE TABLE ${table}(${columns})`)
@@ -109,6 +110,20 @@ test('total logical quota serializes writers and rolls back over-budget transact
   await scoped('DELETE FROM mfa_credentials')
   assert.equal((await storage.configuration()).usage.config, beforeMfa)
   await assert.rejects(scoped('INSERT INTO project_members VALUES($1,$2,$3)', [crypto.randomUUID(),crypto.randomUUID(),'reader']), { code: 'PZ001' })
+  // GitHub reserves both bounded credential/state slots BEFORE OAuth. Once
+  // admitted, token refresh/settlement does not grow usage even at a closed cap.
+  const beforeGithub = (await storage.configuration()).usage.config
+  await assert.rejects(scoped('INSERT INTO github_links VALUES($1)', [crypto.randomUUID()]), { code: 'PZ001' })
+  await configure({ configBytes: Number(beforeGithub) + 10240, platformBytes: 1_000_000 })
+  await scoped('INSERT INTO github_links VALUES($1)', [crypto.randomUUID()])
+  await scoped('INSERT INTO github_oauth_states VALUES($1)', [crypto.randomUUID()])
+  assert.equal((await storage.configuration()).usage.config, String(BigInt(beforeGithub) + 10240n))
+  await configure({ configBytes: 0, platformBytes: 0 })
+  await scoped('UPDATE github_links SET id=$1', [crypto.randomUUID()])
+  await scoped('DELETE FROM github_oauth_states')
+  await scoped('DELETE FROM github_links')
+  assert.equal((await storage.configuration()).usage.config, beforeGithub)
+  await configure({ platformBytes: 1_000_000 })
   // Maintenance writes are counted but not rejected.
   await q('INSERT INTO project_members VALUES($1,$2,$3)', [crypto.randomUUID(),crypto.randomUUID(),'reader'])
   await configure({ configBytes: 1_000_000, categoryBytes: 1_000_000 })
