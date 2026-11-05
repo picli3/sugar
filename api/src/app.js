@@ -54,7 +54,8 @@ import { createTrashRepository } from './trash/repository.js'
 import { createTrashService } from './trash/service.js'
 import { registerTrashRoutes } from './trash/routes.js'
 import { createAccountExport } from './account/export.js'
-import { registerAccountExportRoutes } from './account/routes.js'
+import { registerAccountExportRoutes, registerAccountClosureRoutes } from './account/routes.js'
+import { createAccountClosure } from './account/closure.js'
 
 // Composition only: no DB initialization, listener, timers or background workers.
 // Query, transaction, session secret and GitHub operations belong to the caller.
@@ -67,7 +68,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   const controls = createAccessControls({ secret, config: accessConfig })
   app.use('/api', controls.api)
   app.use('/api', securityAudit({ write: auditWriter }))
-  app.post(['/api/login/mfa/recover', '/api/login/mfa', '/api/me/mfa/enroll', '/api/me/mfa/confirm', '/api/me/mfa/recovery-codes', '/api/me/mfa/disable', '/api/login', '/api/me/password', '/api/me/email', '/api/users', '/api/registration/request', '/api/registration/verify', '/api/recovery/request', '/api/recovery/reset', '/api/recovery/confirm-email'], express.json({ limit: '4kb' }))
+  app.post(['/api/login/mfa/recover', '/api/login/mfa', '/api/me/mfa/enroll', '/api/me/mfa/confirm', '/api/me/mfa/recovery-codes', '/api/me/mfa/disable', '/api/login', '/api/me/password', '/api/me/close', '/api/me/email', '/api/users', '/api/registration/request', '/api/registration/verify', '/api/recovery/request', '/api/recovery/reset', '/api/recovery/confirm-email'], express.json({ limit: '4kb' }))
   app.put('/api/mail', express.json({ limit: '8kb' }))
   app.use(express.json({ limit: '3mb' }))
   app.use(cookieParser())
@@ -109,6 +110,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   app.use('/api', authenticate(auth))
 
   app.post('/api/me/password', controls.credentials)
+  app.post('/api/me/close', controls.credentials)
   app.post('/api/users', controls.credentials)
   registerMfaRoutes(app, { mfa, gate: controls.credentials, auth, sessionSecure })
   registerSessionRoutes(app, auth)
@@ -120,6 +122,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   registerTotalStorageRoutes(app, createTotalStorage({ q, transaction }))
   registerTrashRoutes(app, createTrashService({ trash: createTrashRepository(q), transaction }))
   registerAccountExportRoutes(app, createAccountExport({ transaction }))
+  registerAccountClosureRoutes(app, createAccountClosure({ query: q, transaction, runCredential: controls.runCredential }))
   registerDocumentRoutes(app, q)
   registerUserRoutes(app, createUserService(userRepository, { runCredential: controls.runCredential, passwordChanged: recovery.passwordChanged }))
   registerCategoryRoutes(app, { query: q, transaction, storage: documentStorage })

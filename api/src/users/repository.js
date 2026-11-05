@@ -21,8 +21,8 @@ export function createUserRepository(query, transaction) {
         return true
       })
     },
-    list: () => boundedLegacyList(query, 'SELECT id,email,role,active,created_at FROM users ORDER BY email,id', [], { order: 'r.email,r.id', textFields: ['email','role'] }),
-    page: ({ limit, after }) => boundedMetadataPage(query, 'SELECT id,email,role,active,created_at FROM users WHERE ($1::uuid IS NULL OR id>$1::uuid) ORDER BY id LIMIT $2', [after, limit + 1], { order: 'r.id', textFields: ['email','role'], limit }),
+    list: () => boundedLegacyList(query, 'SELECT id,email,role,active,created_at,closed_at,display_name FROM users ORDER BY email,id', [], { order: 'r.email,r.id', textFields: ['email','role','display_name'] }),
+    page: ({ limit, after }) => boundedMetadataPage(query, 'SELECT id,email,role,active,created_at,closed_at,display_name FROM users WHERE ($1::uuid IS NULL OR id>$1::uuid) ORDER BY id LIMIT $2', [after, limit + 1], { order: 'r.id', textFields: ['email','role','display_name'], limit }),
     async create(id, email, hash, role) {
       return (await query('INSERT INTO users(id,email,password_hash,role) VALUES($1,$2,$3,$4) RETURNING id,email,role,active', [id, email, hash, role])).rows[0]
     },

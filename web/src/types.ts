@@ -1,7 +1,7 @@
 import type { EdgeRoute } from './edgeRouting'
 import type { CategoryIconKey, CategoryIconMap } from './categoryIcons'
 export type Role = 'view' | 'dev' | 'Admin'
-export type User = { id: string; email: string; role: Role; language: 'es' | 'en'; theme: 'dark' | 'light'; display_name?: string | null; active?: boolean }
+export type User = { id: string; email: string; role: Role; language: 'es' | 'en'; theme: 'dark' | 'light'; display_name?: string | null; closed_at?: string | null; active?: boolean }
 export type Port = { id: string; label: string; protocol: string; direction: 'in' | 'out' | 'bidirectional'; maxConnections?: number; color?: string }
 export type Block = { name: string; function: string; model?: string; image?: string; color?: string; category?: string; subcategory?: string; properties?: Record<string, unknown>; ports: Port[] }
 export type DiagramNode = { id: string; position: { x: number; y: number }; block: Block; libraryId?: string; libraryVersion?: number }

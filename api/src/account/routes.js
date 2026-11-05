@@ -26,3 +26,11 @@ export function registerAccountExportRoutes(app, accountExport) {
     } finally { release() }
   }))
 }
+
+export function registerAccountClosureRoutes(app, closure) {
+  app.post('/api/me/close', noStore, asyncRoute(async (req, res) => {
+    const result = await closure.close(req.user, req.body)
+    res.clearCookie('session', { path: '/' }); res.json(result)
+  }))
+  app.post('/api/users/:id/reopen', noStore, asyncRoute(async (req, res) => res.json(await closure.reopen(req.user, req.params.id))))
+}

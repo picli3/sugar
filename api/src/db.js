@@ -19,6 +19,7 @@ import { initDocumentStorage } from './document-storage/migration.js'
 import { initTotalStorage } from './storage-total/migration.js'
 import { initTrashDb } from './trash/repository.js'
 import { initProfileDb } from './shared/identity.js'
+import { initAccountClosureDb } from './account/closure.js'
 import { initCategoryPaginationDb } from './categories/pagination.js'
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
@@ -140,5 +141,6 @@ export async function initDb() {
   }
   await initTrashDb(q)
   await initProfileDb(q)
+  await initAccountClosureDb(q)
   await initTotalStorage(q, transaction)
 }
