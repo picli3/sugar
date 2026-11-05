@@ -58,7 +58,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     const current = await storage.configuration()
     return storage.configure({ ...Object.fromEntries(Object.keys(current).filter(key => !['version','usage'].includes(key)).map(key => [key, current[key]])), ...changes, expectedVersion: current.version })
   }
-  await configure({ platformBytes: 1_000_000, aiBytes: 1_000_000, userAiBytes: 5, syncBytes: 1_000_000, projectSyncBytes: 3, categoryBytes: 8 })
+  await configure({ platformBytes: 1_000_000, aiBytes: 1_000_000, userAiBytes: 12, syncBytes: 1_000_000, projectSyncBytes: 3, categoryBytes: 8 })
   const rollback = await db.connect()
   try {
     await rollback.query('SET ROLE sugar_runtime')
@@ -116,6 +116,15 @@ test('total logical quota serializes writers and rolls back over-budget transact
   races = await Promise.allSettled([scoped('INSERT INTO sync_jobs(yaml,record_id) VALUES($1,$2)', ['abc',project]), scoped('INSERT INTO sync_jobs(yaml,record_id) VALUES($1,$2)', ['def',project])])
   assert.equal(races.filter(result => result.status === 'fulfilled').length, 1)
   assert.equal(races.filter(result => result.status === 'rejected' && result.reason.code === 'PZ001').length, 1)
+  // Connection tests have no payload reservation: reserve status growth upfront.
+  const beforeCall = await storage.configuration(), connectionActor = crypto.randomUUID()
+  await configure({ platformBytes: Number(beforeCall.usage.total) + 10, aiBytes: Number(beforeCall.usage.ai) + 10, userAiBytes: 1_000_000 })
+  await scoped('INSERT INTO ai_calls VALUES($1,$2,$3,0)', ['r','reserved',connectionActor])
+  const admitted = (await storage.configuration()).usage
+  assert.equal(admitted.total, String(BigInt(beforeCall.usage.total) + 10n))
+  await configure({ platformBytes: 0, aiBytes: 0, userAiBytes: 0 })
+  await scoped("UPDATE ai_calls SET status='succeeded' WHERE user_id=$1", [connectionActor])
+  assert.deepEqual((await storage.configuration()).usage, admitted)
   const final = await storage.configuration(), measured = (await q(usageSql)).rows[0]
   for (const field of ['images','documents','ai','sync','categories','config']) assert.equal(final.usage[field], measured[field])
 })

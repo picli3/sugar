@@ -1,4 +1,4 @@
-import { sessionRequest } from './sessionRequest'
+import { sessionRequest } from './sessionRequest.ts'
 export const aiMessages = {
   es: {
     aiQuotaHint: 'El disponible incluye reservas. Si una llamada falla sin consumo confirmado, conserva su reserva y no se reintenta automáticamente.', aiQuotaTitle: 'Cuotas de IA', aiOwnRemaining: 'Disponible para tu cuenta', aiPlatformRemaining: 'Disponible en la plataforma', aiRequests: 'solicitudes', aiTokens: 'tokens', aiQuotaReset: 'Nuevo periodo', aiUserQuota: 'Tu cuota no alcanza para reservar esta solicitud. Espera al nuevo periodo o consulta al administrador.', aiGlobalQuota: 'La cuota global no alcanza para reservar esta solicitud.', aiGlobalBusy: 'La plataforma tiene todas las consultas de IA ocupadas. Intenta más tarde.', aiRequestUsed: 'Esta solicitud ya se procesó o tuvo un resultado incierto. Revisa el historial; no se volvió a cobrar automáticamente.', aiInvalidQuota: 'Límites de IA inválidos.', aiQuotaConflict: 'Los límites cambiaron; actualiza la configuración antes de guardar.',
@@ -17,7 +17,10 @@ export async function aiApi(path: string, method = 'GET', body?: unknown) {
   try {
     const res = await sessionRequest('/api' + path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'aiNetworkError')
+    if (!res.ok) {
+      const code = data.code === 'storageQuotaExceeded' ? 'aiStorageQuota' : data.code === 'storageUnavailable' ? 'aiStorageUnavailable' : null
+      throw new Error(code || data.error || 'aiNetworkError')
+    }
     return data
   } catch (e) { throw e instanceof Error ? e : new Error('aiNetworkError') }
 }

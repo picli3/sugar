@@ -11,7 +11,7 @@ export const usageSql = `SELECT
     UNION ALL SELECT octet_length(before::text)::bigint+octet_length(after::text) FROM project_settings_history
   ) d) AS documents,
   (SELECT COALESCE(sum(octet_length(snapshot::text)::bigint+octet_length(response)+octet_length(focus)+octet_length(model)+COALESCE(octet_length(usage::text),0)),0) FROM project_analyses)
-    +(SELECT COALESCE(sum(octet_length(payload_hash)::bigint+octet_length(status)+storage_bytes),0) FROM ai_calls) AS ai,
+    +(SELECT COALESCE(sum(octet_length(payload_hash)::bigint+9+storage_bytes),0) FROM ai_calls) AS ai,
   (SELECT COALESCE(sum(octet_length(yaml)::bigint+COALESCE(octet_length(error),0)+COALESCE(octet_length(target_repository),0)+COALESCE(octet_length(target_branch),0)+COALESCE(octet_length(commit_sha),0)),0) FROM sync_jobs) AS sync,
   (SELECT COALESCE(sum(octet_length(slug)::bigint+octet_length(name)+octet_length(name_key)+COALESCE(octet_length(icon),0)),0) FROM block_categories) AS categories,
   (SELECT COALESCE(sum(octet_length(key)::bigint+octet_length(value::text)),0) FROM settings)
@@ -32,8 +32,9 @@ const sizes = {
   project_revisions: ['yaml','summary'].map(textBytes), block_versions: ['yaml','summary'].map(textBytes),
   project_settings_history: ['before','after'].map(jsonBytes),
   project_analyses: [...['snapshot','usage'].map(jsonBytes), ...['response','focus','model'].map(textBytes)],
-  // Reserved AI bytes are admitted here before the billable provider call.
-  ai_calls: [...['payload_hash','status'].map(textBytes), `COALESCE((value->>'storage_bytes')::bigint,0)`],
+  // Reserve the longest call status (9 bytes) before billing, so a connection
+  // test can settle at exact capacity or after limits are lowered meanwhile.
+  ai_calls: [textBytes('payload_hash'), '9', `COALESCE((value->>'storage_bytes')::bigint,0)`],
   sync_jobs: ['yaml','error','target_repository','target_branch','commit_sha'].map(textBytes),
   block_categories: ['slug','name','name_key','icon'].map(textBytes),
   settings: [textBytes('key'),jsonBytes('value')],
@@ -64,7 +65,7 @@ export async function initTotalStorage(q, transaction) {
     await tx(`INSERT INTO total_storage_scopes(kind,owner,bytes)
       SELECT 'ai',actor,sum(bytes) FROM (
         SELECT author_id AS actor,octet_length(snapshot::text)::bigint+octet_length(response)+octet_length(focus)+octet_length(model)+COALESCE(octet_length(usage::text),0) AS bytes FROM project_analyses
-        UNION ALL SELECT user_id,octet_length(payload_hash)::bigint+octet_length(status)+storage_bytes FROM ai_calls
+        UNION ALL SELECT user_id,octet_length(payload_hash)::bigint+9+storage_bytes FROM ai_calls
       ) records GROUP BY actor ON CONFLICT(kind,owner) DO NOTHING`)
     await tx(`INSERT INTO total_storage_scopes(kind,owner,bytes)
       SELECT 'sync',record_id,sum(octet_length(yaml)::bigint+COALESCE(octet_length(error),0)+COALESCE(octet_length(target_repository),0)+COALESCE(octet_length(target_branch),0)+COALESCE(octet_length(commit_sha),0))

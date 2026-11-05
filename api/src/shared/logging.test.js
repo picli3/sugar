@@ -5,6 +5,16 @@ import { errorHandler } from './http.js'
 import { syncOne } from '../github.js'
 import { pool } from '../db.js'
 
+test('storage admission errors expose stable public codes without database diagnostics', () => {
+  for (const [sqlCode, status, code] of [['PZ001',409,'storageQuotaExceeded'],['PZ002',503,'storageUnavailable']]) {
+    let body
+    errorHandler({ code: sqlCode, message: 'private database detail', detail: 'private database detail' }, null, { status: value => { assert.equal(value, status); return { json: value => { body = value } } } }, () => {})
+    assert.equal(body.code, code)
+    assert.equal(JSON.stringify(body).includes('private database detail'), false)
+    assert.match(body.error, /administrador|Migra/)
+  }
+})
+
 test('unexpected HTTP and GitHub errors expose only fixed codes, not credentials or response bodies',async t=>{
   const saved=console.error,logs=[];console.error=(...parts)=>logs.push(parts.join(' '));t.after(()=>{console.error=saved})
   const secret='isolated-secret-never-log',err=Object.assign(Error(secret),{detail:secret,headers:{Authorization:secret}})
