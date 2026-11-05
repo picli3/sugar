@@ -10,6 +10,8 @@ export function errorHandler(err, _req, res, _next) {
   if (err.status === 429) res.set('Retry-After', String(err.retryAfter || 1)).set('Cache-Control', 'private, no-store')
   if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un registro con ese nombre o identificador' })
   if (err.code === '22P02') return res.status(400).json({ error: 'Identificador inválido' })
+  if (err.code === 'PZ001') return res.status(409).json({ error: 'Cuota de almacenamiento agotada; contacta al administrador / Storage quota exhausted; contact the administrator' })
+  if (err.code === 'PZ002') return res.status(503).json({ error: 'Migra la configuración de almacenamiento / Migrate storage configuration' })
   const status = err.status || (err.name === 'JsonWebTokenError' ? 401 : 500)
   if (status === 500) reportFailure('HTTP request failed', err)
   res.status(status).json({ error: status === 500 ? 'Error interno' : err.message })

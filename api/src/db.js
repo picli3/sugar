@@ -16,6 +16,7 @@ import { initProjectPaginationDb } from './projects/pagination.js'
 import { initBlockPaginationDb } from './blocks/pagination.js'
 import { initImageStorage } from './images/quotas.js'
 import { initDocumentStorage } from './document-storage/migration.js'
+import { initTotalStorage } from './storage-total/migration.js'
 import { initCategoryPaginationDb } from './categories/pagination.js'
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
@@ -135,4 +136,5 @@ export async function initDb() {
       await q('INSERT INTO block_versions(block_id,version,yaml,summary) VALUES($1,1,$2,$3)', [id, stringify(b), 'Bloque inicial'])
     }
   }
+  await initTotalStorage(q, transaction)
 }

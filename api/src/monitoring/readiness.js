@@ -2,19 +2,26 @@ import { performance } from 'node:perf_hooks'
 import { schemaVersion } from '../database/access.js'
 import { validateImageStorage } from '../images/quotas.js'
 import { validateDocumentStorage } from '../document-storage/config.js'
+import { validateTotalStorage } from '../storage-total/config.js'
+import { totalStorageTables } from '../storage-total/migration.js'
 
 export const readinessQuery = `SELECT value,
   (SELECT value FROM image_storage_config WHERE id=true) AS image_limits,
   (SELECT version FROM image_storage_config WHERE id=true) AS image_version,
   (SELECT value FROM document_storage_config WHERE id=true) AS document_limits,
   (SELECT version FROM document_storage_config WHERE id=true) AS document_version,
+  (SELECT value FROM total_storage_config WHERE id=true) AS total_limits,
+  (SELECT version FROM total_storage_config WHERE id=true) AS total_version,
+  EXISTS(SELECT 1 FROM total_storage_usage WHERE id=true) AS total_usage_ready,
+  (SELECT count(*)::int FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+    WHERE c.relnamespace=current_schema()::regnamespace AND t.tgname LIKE 'sugar\\_total\\_storage\\_%' AND t.tgdeferrable AND t.tginitdeferred AND t.tgenabled='O') AS total_triggers,
   EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='ai_calls'::regclass AND attname='storage_bytes'
     AND atttypid='int8'::regtype AND attnotnull AND NOT attisdropped) AS ai_storage_ready
   FROM settings WHERE key='schema_version'`
 export const databaseProbe = q => async () => {
   const result = await q({ text: readinessQuery, query_timeout: 1000 }), row = result.rows?.[0]
-  if (row?.value !== schemaVersion || !Number.isSafeInteger(row.image_version) || row.image_version < 1 || !Number.isSafeInteger(row.document_version) || row.document_version < 1 || row.ai_storage_ready !== true) return false
-  try { validateImageStorage(row.image_limits); validateDocumentStorage(row.document_limits); return true } catch { return false }
+  if (row?.value !== schemaVersion || !Number.isSafeInteger(row.image_version) || row.image_version < 1 || !Number.isSafeInteger(row.document_version) || row.document_version < 1 || !Number.isSafeInteger(row.total_version) || row.total_version < 1 || row.total_usage_ready !== true || row.total_triggers !== totalStorageTables.length || row.ai_storage_ready !== true) return false
+  try { validateImageStorage(row.image_limits); validateDocumentStorage(row.document_limits); validateTotalStorage(row.total_limits); return true } catch { return false }
 }
 
 // A timeout answers the HTTP caller but retains the in-flight guard until the

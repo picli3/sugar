@@ -44,6 +44,8 @@ import { registerImageStorageRoutes } from './images/quota-routes.js'
 import { createDocumentStorage } from './document-storage/service.js'
 import { createDocumentStorageRepository } from './document-storage/repository.js'
 import { registerDocumentStorageRoutes } from './document-storage/routes.js'
+import { createTotalStorage } from './storage-total/service.js'
+import { registerTotalStorageRoutes } from './storage-total/routes.js'
 
 // Composition only: no DB initialization, listener, timers or background workers.
 // Query, transaction, session secret and GitHub operations belong to the caller.
@@ -103,6 +105,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   registerImageRoutes(app, images)
   registerImageStorageRoutes(app, imageStorage)
   registerDocumentStorageRoutes(app, documentStorage)
+  registerTotalStorageRoutes(app, createTotalStorage({ q, transaction }))
   registerDocumentRoutes(app, q)
   registerUserRoutes(app, createUserService(userRepository, { runCredential: controls.runCredential, passwordChanged: recovery.passwordChanged }))
   registerCategoryRoutes(app, { query: q, transaction, storage: documentStorage })
