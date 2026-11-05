@@ -60,7 +60,7 @@ test('document quotas coordinate content writes, charge owners, retain history a
   await blocks.save(saved.id,a,{yaml:blockYaml,expectedVersion:1,summary:'second'})
   await assert.rejects(blocks.create(a,{yaml:blockYaml}),{status:409})
   await assert.rejects(blocks.save(saved.id,a,{yaml:blockYaml,expectedVersion:2}),{status:409})
-  const legacy={...block,image:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6X6sAAAAASUVORK5CYII='}
+  const legacy={...block,image:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQaHjQAMIMMAYARRIIAU62oz0AAAAASUVORK5CYII='}
   await q('UPDATE block_versions SET yaml=$2 WHERE block_id=$1 AND version=1',[saved.id,stringify(legacy)])
   await assert.rejects(blocks.restore(saved.id,a,{version:1,expectedVersion:2}),{status:409})
   assert.equal((await q('SELECT count(*) AS count FROM images')).rows[0].count,'0')

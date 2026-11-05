@@ -40,6 +40,6 @@ test('over-budget creation fails before transactions, category queries, image wo
   const blocks=createBlockService({transaction:unexpected,validateCategory:unexpected,blocks:{create:unexpected},attachImages:unexpected})
   await assert.rejects(blocks.create(user,{yaml:stringify(block(limits.portsPerBlock+1))}),{status:400})
   const old=project(limits.nodes+1)
-  old.nodes[0].block.image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6X6sAAAAASUVORK5CYII='
+  old.nodes[0].block.image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQaHjQAMIMMAYARRIIAU62oz0AAAAASUVORK5CYII='
   await assert.rejects(replaceEmbeddedImages(stringify(old),'project',unexpected),{status:400})
 })

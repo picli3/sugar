@@ -15,7 +15,7 @@ import { projectCategoryIcons, validateCategory } from './categories.js'
 const url = process.env.API_TEST_URL
 const databaseUrl = process.env.API_TEST_DATABASE_URL
 const password = 'local-user-password'
-const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6X6sAAAAASUVORK5CYII='
+const png = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQaHjQAMIMMAYARRIIAU62oz0AAAAASUVORK5CYII='
 const block = { name: 'Sensor', function: 'Medir', category: 'sensores', ports: [{ id: 'power', label: '3V3', protocol: 'POWER', direction: 'in' }] }
 const document = name => ({ name, nodes: [{ id: 'sensor', position: { x: 10, y: 20 }, block }], edges: [] })
 

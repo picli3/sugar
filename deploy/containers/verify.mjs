@@ -7,7 +7,7 @@ import { syncOne } from '/app/src/github.js'
 import { loadSecretFiles } from '/app/src/config/secrets.js'
 import { verifyRuntime } from '/app/src/database/access.js'
 
-const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6X6sAAAAASUVORK5CYII='
+const png = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQaHjQAMIMMAYARRIIAU62oz0AAAAASUVORK5CYII='
 let cookie
 async function request(path, body, method = body ? 'POST' : 'GET', expected = 200) {
   const response = await fetch('http://web/api' + path, {

@@ -8,7 +8,7 @@ import { createImageService } from './service.js'
 import { createImageRepository } from './repository.js'
 import { replaceEmbeddedImages } from '../images.js'
 const url=process.env.API_TEST_DATABASE_URL
-const data='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6X6sAAAAASUVORK5CYII=',size=Buffer.from(data,'base64').length
+const data='iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQaHjQAMIMMAYARRIIAU62oz0AAAAASUVORK5CYII=',size=Buffer.from(data,'base64').length
 
 test('image storage quotas serialize admissions across instances, isolate accounts and roll back restores', {skip:!url},async t=>{
  const schema='image_storage_'+crypto.randomBytes(8).toString('hex'),admin=new pg.Pool({connectionString:url})

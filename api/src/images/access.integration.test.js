@@ -9,7 +9,7 @@ import { createImageService } from './service.js'
 import { createProjectRepository } from '../projects/repository.js'
 import { createProjectService } from '../projects/service.js'
 const url = process.env.API_TEST_URL, databaseUrl = process.env.API_TEST_DATABASE_URL
-const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
+const png = 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWNQaHjQAMIMMAYARRIIAU62oz0AAAAASUVORK5CYII='
 const block = image => ({ name: 'Image block', function: 'Test permissions', category: 'sensores', image, ports: [{ id: 'p', label: 'P', protocol: 'POWER', direction: 'in' }] })
 const diagram = image => ({ name: 'Image project', nodes: image ? [{ id: 'n', position: { x: 0, y: 0 }, block: block(image) }] : [], edges: [] })
 

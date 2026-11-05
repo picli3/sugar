@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { error, requiredText } from '../shared/http.js'
 import { requireAdmin, requireEdit } from '../auth/policies.js'
 import { imageBytes } from '../images.js'
+import { normalizeImage } from './normalization.js'
 import { imageIds, recordImageReferences } from './references.js'
 import { pageInput, pageResult } from '../shared/pagination.js'
 const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)
@@ -37,7 +38,7 @@ export function createImageService(images, storage) {
       if (!['personal', 'catalog'].includes(scope)) error(400, 'Ámbito de imagen inválido')
       if (scope === 'catalog') requireAdmin(user)
       const name = requiredText(input.name, 'Nombre').slice(0, 120), mime = String(input.mime || '')
-      const bytes = imageBytes(mime, input.data), id = crypto.randomUUID(), ownerId = scope === 'personal' ? user.id : null
+      const bytes = await normalizeImage(mime, imageBytes(mime, input.data)), id = crypto.randomUUID(), ownerId = scope === 'personal' ? user.id : null
       const write = tx => images.create(id, name, mime, bytes, user.id, ownerId, scope, tx)
       if (storage) await storage.create(ownerId, bytes.length, write)
       else await write()

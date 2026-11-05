@@ -91,7 +91,7 @@ export async function initDb() {
   // Convert current documents once; historical revisions remain intact for audit.
   for (const row of (await q("SELECT id,revision,yaml,sync_repository,sync_branch,created_by FROM projects WHERE deleted_at IS NULL AND yaml LIKE '%data:image/%'")).rows) {
     await transaction(async tx => {
-      const yaml = await replaceEmbeddedImages(row.yaml, 'project', tx, { ownerId: row.created_by })
+      const yaml = await replaceEmbeddedImages(row.yaml, 'project', tx, { ownerId: row.created_by, maintenance: true })
       if (yaml === row.yaml) return
       const revision = row.revision + 1
       await tx('UPDATE projects SET yaml=$2,revision=$3 WHERE id=$1', [row.id, yaml, revision])
@@ -101,7 +101,7 @@ export async function initDb() {
   }
   for (const row of (await q("SELECT b.id,b.latest_version,b.owner_id,v.yaml FROM blocks b JOIN block_versions v ON v.block_id=b.id AND v.version=b.latest_version WHERE b.deleted_at IS NULL AND v.yaml LIKE '%data:image/%'")).rows) {
     await transaction(async tx => {
-      const yaml = await replaceEmbeddedImages(row.yaml, 'block', tx, { ownerId: row.owner_id, catalog: !row.owner_id })
+      const yaml = await replaceEmbeddedImages(row.yaml, 'block', tx, { ownerId: row.owner_id, catalog: !row.owner_id, maintenance: true })
       if (yaml === row.yaml) return
       const version = row.latest_version + 1
       await tx('UPDATE blocks SET latest_version=$2 WHERE id=$1', [row.id, version])
