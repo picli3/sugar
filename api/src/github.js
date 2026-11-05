@@ -13,7 +13,7 @@ export async function syncOne({ query = q, authenticate = createAppAuth, request
   running = true
   let job
   try {
-    const jobs = await query("SELECT * FROM sync_jobs WHERE kind='project' AND status='pending' AND next_attempt_at<=now() AND target_repository IS NOT NULL ORDER BY id LIMIT 1")
+    const jobs = await query("SELECT j.* FROM sync_jobs j WHERE j.kind='project' AND j.status='pending' AND j.next_attempt_at<=now() AND j.target_repository IS NOT NULL AND NOT EXISTS(SELECT 1 FROM projects p WHERE p.id=j.record_id AND p.deleted_at IS NOT NULL) ORDER BY j.id LIMIT 1")
     job = jobs.rows[0]
     if (!job) return
     const [owner, repo] = job.target_repository.split('/')

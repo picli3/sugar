@@ -27,7 +27,7 @@ test('unexpected HTTP and GitHub errors expose only fixed codes, not credentials
   const previous={...process.env};Object.assign(process.env,{GITHUB_APP_ID:'1',GITHUB_INSTALLATION_ID:'1',GITHUB_PRIVATE_KEY:'test-only-key'})
   t.after(()=>{for(const key of ['GITHUB_APP_ID','GITHUB_INSTALLATION_ID','GITHUB_PRIVATE_KEY']){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key]}})
   const updates=[]
-  const query=async(sql,args)=>{if(sql.startsWith('SELECT * FROM sync_jobs'))return{rows:[{id:1,target_repository:'test/repo',target_branch:'main',record_id:'id',revision:1,yaml:'name: test'}]};updates.push(args);return{rows:[]}}
+  const query=async(sql,args)=>{if(/^SELECT (j\.)?\* FROM sync_jobs/.test(sql)){assert.match(sql,/NOT EXISTS\(SELECT 1 FROM projects p WHERE p\.id=j\.record_id AND p\.deleted_at IS NOT NULL\)/);return{rows:[{id:1,target_repository:'test/repo',target_branch:'main',record_id:'id',revision:1,yaml:'name: test'}]}};updates.push(args);return{rows:[]}}
   await syncOne({query,authenticate:()=>{throw err}})
   assert.equal(updates[0][1],'UNEXPECTED_ERROR')
   let count=0

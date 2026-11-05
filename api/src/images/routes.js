@@ -16,5 +16,4 @@ export function registerImageRoutes(app, images) {
   app.get('/api/images/page', noStore, asyncRoute(async (req, res) => res.json(await images.page(req.user, req.query))))
   app.get('/api/images', noStore, asyncRoute(async (req, res) => res.json(await images.list(req.user))))
   app.post('/api/images', asyncRoute(async (req, res) => res.status(201).json(await images.create(req.user, req.body))))
-  app.delete('/api/images/:id', asyncRoute(async (req, res) => { await images.archive(req.params.id, req.user); res.json({ ok: true }) }))
 }

@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import { documentDiff } from '../shared/document-diff.js'
 import { error, requiredText } from '../shared/http.js'
-import { requireAdmin } from '../auth/policies.js'
 import { libraryOwner, libraryPermissions, requireLibraryAccess } from '../library/access.js'
 import { normalizeColorLiterals, stringify, validateBlock, revisionSummary } from '../model.js'
 import { revisionPageInput, revisionPageResult, identifierPageInput } from '../shared/pagination.js'
@@ -106,6 +105,5 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
       })
       return { version }
     },
-    async archive(id, user) { requireAdmin(user); await get(id, user, true); await transaction(async tx => { await get(id, user, true, tx, true); await blocks.archive(id, tx) }) },
   }
 }

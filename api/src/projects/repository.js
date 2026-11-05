@@ -82,7 +82,6 @@ export function createProjectRepository(query) {
       return (await query(`UPDATE projects SET share_token=CASE WHEN share_expires_at>now() AND share_token IS NOT NULL THEN share_token ELSE $2 END,share_expires_at=CASE WHEN share_expires_at>now() AND share_token IS NOT NULL THEN share_expires_at ELSE now()+interval '7 days' END WHERE id=$1 AND deleted_at IS NULL RETURNING share_token,share_expires_at`, [id, token])).rows[0]
     },
     async revokeShare(id) { await query('UPDATE projects SET share_token=NULL,share_expires_at=NULL WHERE id=$1', [id]) },
-    async archive(id) { await query('UPDATE projects SET deleted_at=now() WHERE id=$1', [id]) },
     async revisions(id) {
       return boundedLegacyList(query, 'SELECT r.revision,r.summary,r.created_at,u.email AS author FROM project_revisions r LEFT JOIN users u ON u.id=r.author_id WHERE project_id=$1 ORDER BY revision DESC', [id], { order: 'r.revision DESC', textFields: ['summary','author'] })
     },

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { documentDiff } from '../shared/document-diff.js'
 import { error, requiredText } from '../shared/http.js'
-import { requireAdmin, requireEdit, requireProjectAccess, projectPermissions } from '../auth/policies.js'
+import { requireEdit, requireProjectAccess, projectPermissions } from '../auth/policies.js'
 import { normalizeColorLiterals, stringify, validateProject, revisionSummary } from '../model.js'
 import { repositorySettings } from './validation.js'
 import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPageInput, identifierPageInput, identifierPageResult } from '../shared/pagination.js'
@@ -134,7 +134,6 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       })
       return { revision }
     },
-    async archive(id, user) { requireAdmin(user); await get(id, user); await projects.archive(id) },
     async revisions(id, user) { await get(id, user); return projects.revisions(id) },
     async revisionsPage(id, user, query) {
       requireProjectAccess(await projects.access(id, user.id), user)

@@ -22,9 +22,18 @@ export function createImageService(images, storage) {
     },
     async attach(yaml, kind, id, user, tx) {
       const ids = imageIds(yaml, kind)
-      // Check every reference before creating any grant. Guessing an ID is insufficient.
-      for (const imageId of ids) await content(imageId, user, tx)
-      await recordImageReferences(tx, kind, id, ids)
+      // KEY SHARE serializes with purges: a purged or unknown ID grants nothing and does not
+      // block saving documents that still mention it.
+      const found = ids.length ? (await tx(`SELECT i.id,i.deleted_at IS NOT NULL AS trashed,
+        EXISTS(SELECT 1 FROM image_references r WHERE r.image_id=i.id AND r.resource_kind=$2 AND r.resource_id=$3) AS referenced
+        FROM images i WHERE i.id=ANY($1::uuid[]) ORDER BY i.id FOR KEY SHARE OF i`, [ids, kind, id])).rows : []
+      // Check every reference before creating any grant. Guessing an ID is insufficient, and a
+      // trashed image keeps only the references it already had.
+      for (const image of found) {
+        await content(image.id, user, tx)
+        if (image.trashed && !image.referenced) error(404, 'Imagen no encontrada')
+      }
+      await recordImageReferences(tx, kind, id, found.map(image => image.id))
     },
     async list(user) { return (await images.list(user)).map(image => ({ ...image, url: `/api/images/${image.id}/content` })) },
     async page(user, query) {
@@ -43,10 +52,6 @@ export function createImageService(images, storage) {
       if (storage) await storage.create(ownerId, bytes.length, write)
       else await write()
       return { id, name, mime, scope, owner_id: ownerId, url: `/api/images/${id}/content` }
-    },
-    async archive(id, user) {
-      requireAdmin(user)
-      if (!(await images.archive(id))) error(404, 'Imagen no encontrada')
     },
   }
 }

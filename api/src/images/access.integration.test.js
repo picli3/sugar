@@ -110,9 +110,26 @@ test('image access follows ownership, resource membership, publication and expir
     await req('/blocks/' + created.body.id, admin, 'DELETE')
     assert.equal((await req(path, viewer.cookie)).status, 404)
     const old = await req(p + '/share', a.cookie, 'POST'), link = new URL('http://test' + old.body.path).searchParams.get('share')
-    await req('/images/' + own.id, admin, 'DELETE')
+    // Trash keeps existing references working (#19); only an explicit purge cuts them.
+    const access = async () => [...await Promise.all([a.cookie, admin, null].map(async cookie => (await req(path, cookie)).status)), (await req(`/shared/${link}/images/${own.id}/content`)).status]
+    const before = await access()
+    assert.equal((await req('/images/' + own.id, b.cookie, 'DELETE')).status, 404)
+    assert.equal((await req('/images/' + own.id, a.cookie, 'DELETE')).status, 200)
+    assert.deepEqual(await access(), before)
+    assert.equal((await req('/images', a.cookie)).body.some(i => i.id === own.id), false)
+    // The owner cannot attach a trashed image to a new resource.
+    assert.equal((await req('/projects', a.cookie, 'POST', { yaml: JSON.stringify(diagram(path)) })).status, 404)
+    const purge = (cookie, confirm) => req('/trash/image/' + own.id, cookie, 'DELETE', { confirm })
+    assert.equal((await purge(a.cookie, own.name)).status, 409)
+    await pool.query("UPDATE images SET deleted_at=now()-interval '31 days' WHERE id=$1", [own.id])
+    assert.equal((await purge(b.cookie, own.name)).status, 404)
+    assert.equal((await purge(a.cookie, 'wrong')).status, 400)
+    assert.equal((await purge(a.cookie, own.name)).status, 200)
     for (const cookie of [a.cookie, admin, null]) assert.equal((await req(path, cookie)).status, 404)
     assert.equal((await req(`/shared/${link}/images/${own.id}/content`)).status, 404)
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM image_references WHERE image_id=$1', [own.id])).rows[0].n, 0)
+    // Documents that still mention the purged image remain editable.
+    assert.equal((await req('/projects', a.cookie, 'POST', { yaml: JSON.stringify(diagram(path)) })).status, 201)
   })
 })
 

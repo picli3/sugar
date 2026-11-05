@@ -60,6 +60,5 @@ export function createBlockRepository(query) {
     async save(id, expected, block, tx) {
       return (await tx('UPDATE blocks SET name=$3,category_slug=$4,subcategory_slug=$5,latest_version=latest_version+1 WHERE id=$1 AND latest_version=$2 AND deleted_at IS NULL RETURNING latest_version', [id, expected, block.name, block.category || null, block.subcategory || null])).rows[0]
     },
-    async archive(id, tx = query) { await tx('UPDATE blocks SET deleted_at=now() WHERE id=$1', [id]) },
   }
 }
