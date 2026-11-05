@@ -27,7 +27,8 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
     list: user => projects.list(user),
     async page(user, query) {
       const input = pageInput(query)
-      return pageResult(await projects.page(user, input), input.limit, item => item)
+      const page = await projects.page(user, input)
+      return pageResult(page.rows, input.limit, item => item, page.more)
     },
     async public(id) {
       const project = await projects.public(id)
@@ -100,7 +101,8 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
     async settingsHistoryPage(id, user, query) {
       requireProjectAccess(await projects.access(id, user.id), user)
       const input = bigintPageInput(query)
-      return identifierPageResult(await projects.settingsHistoryPage(id, input), input.limit, item => item)
+      const page = await projects.settingsHistoryPage(id, input)
+      return identifierPageResult(page.rows, input.limit, item => item, page.more)
     },
     async share(id, user) {
       const project = await get(id, user, { ownerOnly: true })
@@ -131,7 +133,8 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
     async revisionsPage(id, user, query) {
       requireProjectAccess(await projects.access(id, user.id), user)
       const input = revisionPageInput(query)
-      return revisionPageResult(await projects.revisionsPage(id, input), input.limit, 'revision')
+      const page = await projects.revisionsPage(id, input)
+      return revisionPageResult(page.rows, input.limit, 'revision', page.more)
     },
     async revision(id, user, revision) {
       await get(id, user)

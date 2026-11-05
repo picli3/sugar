@@ -28,7 +28,8 @@ export function createImageService(images, storage) {
     async list(user) { return (await images.list(user)).map(image => ({ ...image, url: `/api/images/${image.id}/content` })) },
     async page(user, query) {
       const input = pageInput(query)
-      return pageResult(await images.page(user, input), input.limit, image => ({ ...image, url: `/api/images/${image.id}/content` }))
+      const page = await images.page(user, input)
+      return pageResult(page.rows, input.limit, image => ({ ...image, url: `/api/images/${image.id}/content` }), page.more)
     },
     async create(user, input) {
       requireEdit(user)

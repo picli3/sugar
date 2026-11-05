@@ -1,4 +1,4 @@
-import { boundedLegacyList } from '../shared/legacy-list.js'
+import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
 // All grants are evaluated against live project/library permissions, never URL secrecy.
 const projectRead = `(p.visibility='public' OR p.created_by=$2 OR EXISTS(SELECT 1 FROM project_members m WHERE m.project_id=p.id AND m.user_id=$2))`
 const readable = `(
@@ -26,10 +26,10 @@ export function createImageRepository(query) {
         WHERE i.deleted_at IS NULL ${filter} ${boundary} ORDER BY i.created_at DESC,i.id DESC LIMIT ${cap})`
       // Disjoint partial-index scans cap candidate metadata before joining creator data.
       const candidates = user.role === 'Admin' ? branch('') : branch(`AND i.owner_id=${bind(user.id)}::uuid AND i.scope<>'catalog'`) + ' UNION ALL ' + branch("AND i.scope='catalog'")
-      return (await query(`SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,u.email AS creator,
+      return boundedMetadataPage(query, `SELECT i.id,i.name,i.mime,i.scope,i.owner_id,i.created_at,u.email AS creator,
         to_char(i.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
         FROM (${candidates}) i LEFT JOIN users u ON u.id=i.created_by
-        ORDER BY i.created_at DESC,i.id DESC LIMIT ${cap}`, values)).rows
+        ORDER BY i.created_at DESC,i.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'mime', 'scope', 'creator'], limit })
     },
     async create(id, name, mime, bytes, authorId, ownerId, scope, execute = query) {
       await execute('INSERT INTO images(id,name,mime,data,created_by,owner_id,scope) VALUES($1,$2,$3,$4,$5,$6,$7)', [id, name, mime, bytes, authorId, ownerId, scope])

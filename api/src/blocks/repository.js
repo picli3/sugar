@@ -1,4 +1,4 @@
-import { boundedLegacyList } from '../shared/legacy-list.js'
+import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
 import { libraryPageBytes } from './pagination.js'
 export function createBlockRepository(query) {
   return {
@@ -47,9 +47,9 @@ export function createBlockRepository(query) {
       const args = [id], boundary = before === null ? '' : 'AND v.version<$2::integer'
       if (before !== null) args.push(before)
       args.push(limit + 1)
-      return (await query(`SELECT v.version,v.summary,v.created_at,u.email AS author FROM block_versions v
+      return boundedMetadataPage(query, `SELECT v.version,v.summary,v.created_at,u.email AS author FROM block_versions v
         LEFT JOIN users u ON u.id=v.author_id WHERE v.block_id=$1 ${boundary}
-        ORDER BY v.version DESC LIMIT $${args.length}`, args)).rows
+        ORDER BY v.version DESC LIMIT $${args.length}`, args, { order: 'r.version DESC', textFields: ['summary', 'author'], limit })
     },
     async version(id, version) {
       return (await query('SELECT yaml FROM block_versions WHERE block_id=$1 AND version=$2', [id, version])).rows[0]

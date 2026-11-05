@@ -10,7 +10,7 @@ test('history page routes require sessions, use page handlers and disable cachin
     if(sql.startsWith('SELECT u.id,u.email,u.role,u.language,u.theme FROM user_sessions'))return {rows:[{id,role:'dev',email:'fixture@example.invalid',language:'es',theme:'light'}]}
     if(sql.startsWith('SELECT id,owner_id FROM blocks'))return {rows:allowed?[{id,owner_id:id}]:[]}
     if(sql.startsWith('SELECT p.id,p.created_by,p.visibility,m.role'))return {rows:allowed?[{id,created_by:id,visibility:'private'}]:[]}
-    if(sql.includes('FROM block_versions v')||sql.includes('FROM project_revisions r')||sql.includes('FROM project_settings_history h')){historyReads++;return {rows:[]}}
+    if(sql.includes('FROM block_versions v')||sql.includes('FROM project_revisions r')||sql.includes('FROM project_settings_history h')){historyReads++;return {rows:[{items:[],more:false,oversized:false}]}}
     throw new Error('Unexpected query: '+sql)
   }
   const app=createApp({q,secret,registrationConfig:{enabled:false},recoveryConfig:{enabled:false}}), server=app.listen(0,'127.0.0.1')

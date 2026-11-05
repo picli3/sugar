@@ -37,18 +37,18 @@ export function bigintPageInput(query = {}) {
   if (cursor !== undefined && (typeof cursor !== 'string' || !/^[1-9]\d{0,18}$/.test(cursor) || BigInt(cursor) > 9223372036854775807n)) invalid()
   return { limit, before: cursor ?? null }
 }
-export function identifierPageResult(rows, limit, serialize) {
+export function identifierPageResult(rows, limit, serialize, more = rows.length > limit) {
   const items = rows.slice(0, limit)
-  return { items: items.map(serialize), nextCursor: rows.length > limit ? items.at(-1).id : null }
+  return { items: items.map(serialize), nextCursor: more && items.length ? items.at(-1).id : null }
 }
-export function revisionPageResult(rows, limit, field) {
+export function revisionPageResult(rows, limit, field, more = rows.length > limit) {
   const items = rows.slice(0, limit)
-  return { items, nextCursor: rows.length > limit ? String(items.at(-1)[field]) : null }
+  return { items, nextCursor: more && items.length ? String(items.at(-1)[field]) : null }
 }
-export function pageResult(rows, limit, serialize) {
+export function pageResult(rows, limit, serialize, more = rows.length > limit) {
   const visible = rows.slice(0, limit), last = visible.at(-1)
   return {
     items: visible.map(({ cursor_time, ...row }) => serialize(row)),
-    nextCursor: rows.length > limit ? Buffer.from(JSON.stringify({ at: last.cursor_time, id: last.id })).toString('base64url') : null,
+    nextCursor: more && last ? Buffer.from(JSON.stringify({ at: last.cursor_time, id: last.id })).toString('base64url') : null,
   }
 }

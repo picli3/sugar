@@ -44,7 +44,8 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
     async versionsPage(id, user, query) {
       await get(id, user)
       const options = revisionPageInput(query)
-      return revisionPageResult(await blocks.versionsPage(id, options), options.limit, 'version')
+      const page = await blocks.versionsPage(id, options)
+      return revisionPageResult(page.rows, options.limit, 'version', page.more)
     },
     async version(id, version, user) {
       await get(id, user)
