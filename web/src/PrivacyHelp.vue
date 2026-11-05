@@ -37,6 +37,8 @@ const parts = (text: string) => text.split(/(https:\/\/[^\s)]*[^\s).,;]|[\w.+-]+
 .privacy-status { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--surface2); border-radius: 6px; }
 .privacy-card nav { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 12px 0; font-size: 13px; }
 .privacy-card a { color: var(--accent); overflow-wrap: anywhere; }
+/* Links inside text are underlined so they never depend on color alone (WCAG 1.4.1). */
+.privacy-card section a { text-decoration: underline; text-underline-offset: 2px; }
 .privacy-card ul { list-style: disc; padding-left: 22px; margin: 4px 0 8px; }
 .privacy-card li { margin: 4px 0; }
 .privacy-card > button { margin-top: 24px; }
