@@ -1,3 +1,4 @@
+import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
 export function createUserRepository(query, transaction) {
   return {
     async findActiveByEmail(email) {
@@ -18,7 +19,8 @@ export function createUserRepository(query, transaction) {
         return true
       })
     },
-    async list() { return (await query('SELECT id,email,role,active,created_at FROM users ORDER BY email')).rows },
+    list: () => boundedLegacyList(query, 'SELECT id,email,role,active,created_at FROM users ORDER BY email,id', [], { order: 'r.email,r.id', textFields: ['email','role'] }),
+    page: ({ limit, after }) => boundedMetadataPage(query, 'SELECT id,email,role,active,created_at FROM users WHERE ($1::uuid IS NULL OR id>$1::uuid) ORDER BY id LIMIT $2', [after, limit + 1], { order: 'r.id', textFields: ['email','role'], limit }),
     async create(id, email, hash, role) {
       return (await query('INSERT INTO users(id,email,password_hash,role) VALUES($1,$2,$3,$4) RETURNING id,email,role,active', [id, email, hash, role])).rows[0]
     },

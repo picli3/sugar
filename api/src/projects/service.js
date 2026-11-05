@@ -4,7 +4,7 @@ import { error, requiredText } from '../shared/http.js'
 import { requireAdmin, requireEdit, requireProjectAccess, projectPermissions } from '../auth/policies.js'
 import { normalizeColorLiterals, stringify, validateProject, revisionSummary } from '../model.js'
 import { repositorySettings } from './validation.js'
-import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPageInput, identifierPageResult } from '../shared/pagination.js'
+import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPageInput, identifierPageInput, identifierPageResult } from '../shared/pagination.js'
 
 export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {} }) {
   const get = async (id, user, options, tx, lock = false) => {
@@ -42,6 +42,11 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       return publicResult(project)
     },
     async members(id, user) { await get(id, user, { ownerOnly: true }); return projects.members(id) },
+    async membersPage(id, user, query) {
+      await get(id, user, { ownerOnly: true })
+      const input = identifierPageInput(query), page = await projects.membersPage(id, input)
+      return identifierPageResult(page.rows, input.limit, ({ id, ...member }) => member, page.more)
+    },
     async setMember(id, user, input) {
       await get(id, user, { ownerOnly: true })
       const email = requiredText(input.email, 'Email').toLowerCase(), role = input.role

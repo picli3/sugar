@@ -38,7 +38,10 @@ export function createProjectRepository(query) {
         FROM (${candidates}) p LEFT JOIN users u ON u.id=p.created_by ORDER BY p.created_at DESC,p.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'visibility', 'sync_repository', 'sync_branch', 'creator'], limit })
     },
     async members(id) {
-      return (await query('SELECT m.user_id,u.email,m.role,u.active FROM project_members m JOIN users u ON u.id=m.user_id WHERE m.project_id=$1 ORDER BY u.email', [id])).rows
+      return boundedLegacyList(query, 'SELECT m.user_id,u.email,m.role,u.active FROM project_members m JOIN users u ON u.id=m.user_id WHERE m.project_id=$1 ORDER BY u.email,m.user_id', [id], { order: 'r.email,r.user_id', textFields: ['email','role'] })
+    },
+    membersPage(id, { limit, after }) {
+      return boundedMetadataPage(query, 'SELECT m.user_id AS id,m.user_id,u.email,m.role,u.active FROM project_members m JOIN users u ON u.id=m.user_id WHERE m.project_id=$1 AND ($2::uuid IS NULL OR m.user_id>$2::uuid) ORDER BY m.user_id LIMIT $3', [id, after, limit + 1], { order: 'r.id', textFields: ['email','role'], limit })
     },
     async memberAccount(email, tx) {
       return (await tx('SELECT id,email,role,active FROM users WHERE email=$1 AND active=true FOR SHARE', [email])).rows[0]

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { error, requiredText } from '../shared/http.js'
 import { requireAdmin } from '../auth/policies.js'
+import { identifierPageInput, identifierPageResult } from '../shared/pagination.js'
 
 export function createUserService(users, { runCredential = task => task(), passwordChanged = async () => {} } = {}) {
   return {
@@ -23,6 +24,11 @@ export function createUserService(users, { runCredential = task => task(), passw
       await passwordChanged(user)
     },
     async list(user) { requireAdmin(user); return users.list() },
+    async page(user, query) {
+      requireAdmin(user)
+      const input = identifierPageInput(query), page = await users.page(input)
+      return identifierPageResult(page.rows, input.limit, item => item, page.more)
+    },
     async create(user, input) {
       requireAdmin(user)
       const email = requiredText(input.email, 'Email').toLowerCase(), password = requiredText(input.password, 'Contraseña'), role = input.role

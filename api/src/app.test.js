@@ -36,7 +36,7 @@ test('HTTP contracts retain public routes, session cookies, authentication and e
     if (sql.startsWith('SELECT id,email,role,language,theme')) return { rows: params[0] === user.id ? [user] : [] }
     if (sql.includes("p.visibility='public'")) return { rows: params[0] === 'p' ? [project] : [] }
     if (sql.startsWith('SELECT mime,data')) return { rows: [{ mime: 'image/png', data: Buffer.from('test-image') }] }
-    if (sql.startsWith('SELECT id,email,role,active')) throw Object.assign(Error('duplicate'), { code: '23505' })
+    if (sql.includes('SELECT id,email,role,active')) throw Object.assign(Error('duplicate'), { code: '23505' })
     if (sql.includes('WHERE p.id=$1')) throw Object.assign(Error('bad id'), { code: '22P02' })
     throw Error('Unexpected query: ' + sql)
   }
