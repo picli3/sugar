@@ -1,14 +1,8 @@
 import crypto from 'node:crypto'
 import { error } from '../shared/http.js'
-import { matchTotp } from './totp.js'
-import { matchesRecoveryCode } from './recovery.js'
+import { attemptWindow, matchFactor, recordFailure } from './proofs.js'
 
 const challengeDigest = token => crypto.createHash('sha256').update('sugar:mfa:login:v1:' + token).digest('hex')
-const failureWindowMs = 15 * 60 * 1000
-export function attemptWindow(state, now) {
-  const expired = now.getTime() - state.failures_since.getTime() >= failureWindowMs
-  return { failures: expired ? 0 : state.failures, since: expired ? now : state.failures_since }
-}
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
 const unwrap = result => { if (result.status) error(result.status, result.message); return result.value }
 
@@ -47,20 +41,10 @@ export function createMfaChallenges({ transaction, secretBox }) {
         if (!user?.active || !state?.enabled || state.challenge_hash !== hash || state.challenge_auth_version !== user.auth_version || state.challenge_expires_at <= now) return denied()
         const attempts = attemptWindow(state, now)
         if (attempts.failures >= 5) return denied(429, 'mfaRateLimited')
-        let step = null, recoveredHash = null
-        if (recovery) {
-          // Recovery must remain available if the dedicated encryption key is lost.
-          for (const candidate of state.recovery_hashes) if (matchesRecoveryCode(user.id, code, candidate)) recoveredHash = candidate
-        } else step = matchTotp(secretBox.decrypt(user.id, state.secret_box), code, { now: now.getTime(), after: Number(state.last_step) })
-        if (step === null && recoveredHash === null) {
-          const failures = attempts.failures + 1
-          await tx('UPDATE mfa_credentials SET failures=$2,failures_since=$3 WHERE user_id=$1', [user.id, failures, attempts.failures === 0 ? now : attempts.since])
-          // Return the failure so COMMIT preserves its counter. Throwing inside
-          // this transaction would silently roll brute-force protection back.
-          return failures >= 5 ? denied(429, 'mfaRateLimited') : denied()
-        }
+        const matched = matchFactor(secretBox, user.id, state, code, recovery, now)
+        if (!matched) return recordFailure(tx, user.id, attempts, now)
         await tx(`UPDATE mfa_credentials SET challenge_hash=NULL,challenge_expires_at=NULL,challenge_auth_version=NULL,
-          last_step=$2,recovery_hashes=$3,failures=0,failures_since=$4 WHERE user_id=$1`, [user.id, step ?? state.last_step, state.recovery_hashes.filter(value => value !== recoveredHash), now])
+          last_step=$2,recovery_hashes=$3,failures=0,failures_since=$4 WHERE user_id=$1`, [user.id, matched.lastStep, matched.recoveryHashes, now])
         const { active, ...identity } = user
         return { value: await onVerified(tx, identity) }
       }))

@@ -2,27 +2,18 @@ import crypto from 'node:crypto'
 import { error } from '../shared/http.js'
 import { generateSecret, matchTotp, enrollmentUri } from './totp.js'
 import { generateRecoveryCodes } from './recovery.js'
-import { attemptWindow } from './challenges.js'
+import { attemptWindow, recordFailure } from './proofs.js'
+import { lockCurrentAccount, validId } from './accounts.js'
 
 const denied = (status = 401, message = 'mfaInvalid') => ({ status, message })
 const unwrap = result => { if (result.status) error(result.status, result.message); return result.value }
-const validId = id => typeof id === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)
-
 // Internal enrollment foundation; no HTTP adapter exposes these operations yet.
 export function createMfaEnrollment({ transaction, secretBox }) {
-  async function currentAccount(tx, userId, sessionId) {
-    const user = (await tx('SELECT * FROM users WHERE id=$1 FOR UPDATE', [userId])).rows[0]
-    if (!user?.active) return null
-    // Check again AFTER the account lock, and lock the current session so a
-    // concurrent logout cannot be overwritten by a later session upgrade.
-    const session = (await tx('SELECT id FROM user_sessions WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp() AND auth_version=$3 FOR UPDATE', [sessionId, userId, user.auth_version])).rows[0]
-    return session ? user : null
-  }
   return {
     async begin({ userId, sessionId, expectedHash }) {
       if (!validId(userId) || !validId(sessionId)) error(401, 'mfaInvalid')
       return unwrap(await transaction(async tx => {
-        const user = await currentAccount(tx, userId, sessionId)
+        const user = await lockCurrentAccount(tx, userId, sessionId)
         if (!user || typeof expectedHash !== 'string' || user.password_hash !== expectedHash) return denied()
         if (user.role !== 'Admin') return denied(403, 'mfaAdminRequired')
         if (!secretBox.available) return denied(503, 'mfaKeyMissing')
@@ -42,7 +33,7 @@ export function createMfaEnrollment({ transaction, secretBox }) {
     async confirm({ userId, sessionId, enrollmentId, code }) {
       if (![userId, sessionId, enrollmentId].every(validId)) error(401, 'mfaInvalid')
       return unwrap(await transaction(async tx => {
-        const user = await currentAccount(tx, userId, sessionId)
+        const user = await lockCurrentAccount(tx, userId, sessionId)
         if (!user) return denied()
         if (user.role !== 'Admin') return denied(403, 'mfaAdminRequired')
         const state = (await tx('SELECT * FROM mfa_credentials WHERE user_id=$1 FOR UPDATE', [userId])).rows[0]
@@ -51,11 +42,7 @@ export function createMfaEnrollment({ transaction, secretBox }) {
         const attempts = attemptWindow(state, now)
         if (attempts.failures >= 5) return denied(429, 'mfaRateLimited')
         const step = matchTotp(secretBox.decrypt(userId, state.pending_box), code, { now: now.getTime() })
-        if (step === null) {
-          const failures = attempts.failures + 1
-          await tx('UPDATE mfa_credentials SET failures=$2,failures_since=$3 WHERE user_id=$1', [userId, failures, attempts.failures === 0 ? now : attempts.since])
-          return failures >= 5 ? denied(429, 'mfaRateLimited') : denied()
-        }
+        if (step === null) return recordFailure(tx, userId, attempts, now)
         const recovery = generateRecoveryCodes(userId)
         await tx(`UPDATE mfa_credentials SET enabled=true,secret_box=pending_box,last_step=$2,recovery_hashes=$3,
           pending_box=NULL,pending_id=NULL,pending_expires_at=NULL,pending_auth_version=NULL,
