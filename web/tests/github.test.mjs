@@ -34,3 +34,11 @@ test('GitHub error returns map to specific messages and rejected returns list on
   assert.deepEqual(take('?error=x&next=https://attacker.invalid'),{error:'invalid',received:['error','next']})
   assert.deepEqual(take('?code=abc&state='+state+'&Secret=value'),{error:'invalid',received:['code','state']})
 })
+
+test('GitHub issuer parameter (RFC 9207) is accepted only with GitHub exact issuer',()=>{
+  const state='s'.repeat(43), history={replaceState:()=>{}}, take=search=>takeGithubCallback({pathname:'/oauth/github/callback',search,hash:''},history)
+  assert.deepEqual(take('?code=a1b0&iss=https%3A%2F%2Fgithub.com%2Flogin%2Foauth&state='+state),{code:'a1b0',state})
+  assert.deepEqual(take('?error=redirect_uri_mismatch&error_description=x&error_uri=y&iss=https%3A%2F%2Fgithub.com%2Flogin%2Foauth&state='+state),{error:'redirectMismatch'})
+  for(const iss of ['https%3A%2F%2Fattacker.invalid','https%3A%2F%2Fgithub.com%2Flogin%2Foauth%2F','']) assert.equal(take('?code=a1b0&iss='+iss+'&state='+state).error,'invalid',iss)
+  assert.equal(take('?code=a1b0&iss=https%3A%2F%2Fgithub.com%2Flogin%2Foauth&iss=https%3A%2F%2Fgithub.com%2Flogin%2Foauth&state='+state).error,'invalid')
+})

@@ -19,14 +19,17 @@ export function takeGithubCallback(location: Pick<Location, 'pathname' | 'search
   // Only parameter names (never values) are kept, so a rejected return can be diagnosed safely.
   const received = [...new Set(keys)].filter(key => /^[a-z_]{1,32}$/.test(key)).slice(0, 8)
   const invalid = { error: 'invalid' as const, received }
+  // RFC 9207: GitHub identifies itself with iss. Accepted only with GitHub's exact issuer.
+  const issuer = input.get('iss')
+  if (issuer !== null && issuer !== 'https://github.com/login/oauth') return invalid
   // GitHub reports failures as ?error=<code>&error_description=…&error_uri=…&state=…; only the code is used.
   const failure = input.get('error')
-  if (failure !== null && !code && keys.every(key => input.getAll(key).length === 1 && ['error','error_description','error_uri','state'].includes(key))) {
+  if (failure !== null && !code && keys.every(key => input.getAll(key).length === 1 && ['error','error_description','error_uri','state','iss'].includes(key))) {
     const known: Record<string, GithubCallbackError> = { access_denied: 'denied', redirect_uri_mismatch: 'redirectMismatch', application_suspended: 'suspended' }
     return { error: known[failure] || 'githubError' }
   }
   if (fragment || !state || !/^[A-Za-z0-9_-]{43}$/.test(state) || keys.some(key => input.getAll(key).length !== 1)) return invalid
-  const allowed = installMarkers ? ['code','state','installation_id','setup_action'] : ['code','state']
+  const allowed = [...(installMarkers ? ['code','state','installation_id','setup_action'] : ['code','state']), 'iss']
   if (keys.some(key => !allowed.includes(key)) || !code || !/^[A-Za-z0-9_=-]{1,256}$/.test(code)) return invalid
   return { code, state }
 }
