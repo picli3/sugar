@@ -1,5 +1,6 @@
 import { sessionRequest } from './sessionRequest.ts'
-export type GithubCallback = { code: string; state: string } | { error: 'denied' | 'invalid' | 'installed' }
+export type GithubCallbackError = 'denied' | 'invalid' | 'installed' | 'redirectMismatch' | 'suspended' | 'githubError'
+export type GithubCallback = { code: string; state: string } | { error: GithubCallbackError; received?: string[] }
 export type GithubStatus = { eligible: boolean; configured: boolean; canConnect: boolean; connected: boolean; canDisconnect: boolean; account: { id: string; login: string } | null; needsReauthorization: boolean; installationUrl: string | null }
 export type GithubInstallation = { id: string; login: string; writable: boolean }
 export type GithubRepository = { id: string; name: string; defaultBranch: string; private: boolean }
@@ -15,10 +16,18 @@ export function takeGithubCallback(location: Pick<Location, 'pathname' | 'search
   const installation = input.get('installation_id'), setup = input.get('setup_action')
   const installMarkers = (installation === null || /^[0-9]{1,20}$/.test(installation)) && (setup === null || ['install', 'update', 'request'].includes(setup)) && (installation !== null || setup !== null)
   if (!fragment && !state && installMarkers && keys.every(key => input.getAll(key).length === 1 && ['code','installation_id','setup_action'].includes(key))) return { error: 'installed' }
-  if (fragment || !state || !/^[A-Za-z0-9_-]{43}$/.test(state) || keys.some(key => input.getAll(key).length !== 1)) return { error: 'invalid' }
-  if (input.get('error') === 'access_denied' && !code) return { error: 'denied' }
+  // Only parameter names (never values) are kept, so a rejected return can be diagnosed safely.
+  const received = [...new Set(keys)].filter(key => /^[a-z_]{1,32}$/.test(key)).slice(0, 8)
+  const invalid = { error: 'invalid' as const, received }
+  // GitHub reports failures as ?error=<code>&error_description=…&error_uri=…&state=…; only the code is used.
+  const failure = input.get('error')
+  if (failure !== null && !code && keys.every(key => input.getAll(key).length === 1 && ['error','error_description','error_uri','state'].includes(key))) {
+    const known: Record<string, GithubCallbackError> = { access_denied: 'denied', redirect_uri_mismatch: 'redirectMismatch', application_suspended: 'suspended' }
+    return { error: known[failure] || 'githubError' }
+  }
+  if (fragment || !state || !/^[A-Za-z0-9_-]{43}$/.test(state) || keys.some(key => input.getAll(key).length !== 1)) return invalid
   const allowed = installMarkers ? ['code','state','installation_id','setup_action'] : ['code','state']
-  if (keys.some(key => !allowed.includes(key)) || !code || !/^[A-Za-z0-9_=-]{1,256}$/.test(code)) return { error: 'invalid' }
+  if (keys.some(key => !allowed.includes(key)) || !code || !/^[A-Za-z0-9_=-]{1,256}$/.test(code)) return invalid
   return { code, state }
 }
 const copy = {
@@ -30,7 +39,7 @@ const copy = {
     remotePending: 'El vínculo local se eliminó, pero no se confirmó la revocación remota. Revisa la App autorizada en GitHub.', remoteReplace: 'Cuenta conectada. Revisa y revoca manualmente la autorización anterior en GitHub si ya no la necesitas.',
     renewed: 'GitHub conectado. Vuelve a autorizar el destino en cada proyecto.', reauthorize: 'La autorización caducó, cambió o se interrumpió. Vuelve a conectar tu cuenta y autorizar el destino.',
     install: 'Instalar la App en GitHub', manage: 'Revisar autorizaciones en GitHub', installHint: 'Instala la App sólo en los repositorios que quieras usar. Después actualiza la lista de destinos.',
-    denied: 'La autorización fue cancelada en GitHub.', invalid: 'La autorización no es válida o ya fue utilizada. Inicia de nuevo desde Configuración.', installed: 'La App de GitHub quedó instalada. Ahora pulsa «Conectar con GitHub» para autorizar tu cuenta.', session: 'Necesitas la misma sesión de Sugar que inició la conexión. Inicia sesión y vuelve a empezar desde Configuración.',
+    denied: 'La autorización fue cancelada en GitHub.', invalid: 'La autorización no es válida o ya fue utilizada. Inicia de nuevo desde Configuración.', redirectMismatch: 'GitHub rechazó la URL de retorno. En la configuración de la GitHub App, «Callback URL» debe ser exactamente {url}.', suspended: 'La App de GitHub está suspendida. El administrador debe reactivarla.', githubError: 'GitHub devolvió un error al autorizar. Revisa la configuración de la App e inténtalo de nuevo.', received: 'Parámetros recibidos', installed: 'La App de GitHub quedó instalada. Ahora pulsa «Conectar con GitHub» para autorizar tu cuenta.', session: 'Necesitas la misma sesión de Sugar que inició la conexión. Inicia sesión y vuelve a empezar desde Configuración.',
     failure: 'No se pudo completar la operación con GitHub. Inténtalo de nuevo.', busy: 'Ya hay una operación en curso o se alcanzó el límite. Espera antes de intentarlo de nuevo.', forbidden: 'Tu cuenta y la App deben tener escritura en ese repositorio. Comprueba también que la instalación esté activa.',
     quota: 'No hay espacio para guardar la autorización. Contacta al administrador.', branchMissing: 'La rama no existe en GitHub. Créala allí o elige una existente.', settingsConflict: 'La configuración cambió. Recarga el proyecto antes de guardar el destino.', conflict: 'Ya existe un archivo distinto para esa revisión. No se sobrescribió.',
     publicRequired: 'El repositorio es público. Confirma expresamente que deseas publicar el proyecto allí.', excessive: 'La cuenta supera el límite de 1.000 instalaciones o repositorios; no se devolvió una lista incompleta.',
@@ -46,7 +55,7 @@ const copy = {
     remotePending: 'The local link was removed, but remote revocation was not confirmed. Review the authorized App on GitHub.', remoteReplace: 'Account connected. Review and manually revoke the previous GitHub authorization if you no longer need it.',
     renewed: 'GitHub connected. Authorize the destination again in each project.', reauthorize: 'Authorization expired, changed or was interrupted. Reconnect your account and authorize the destination.',
     install: 'Install the App on GitHub', manage: 'Review authorizations on GitHub', installHint: 'Install the App only on repositories you want to use. Then refresh the destination list.',
-    denied: 'Authorization was cancelled on GitHub.', invalid: 'Authorization is invalid or has already been used. Start again from Settings.', installed: 'The GitHub App is installed. Now press “Connect with GitHub” to authorize your account.', session: 'You need the same Sugar session that started the connection. Sign in and start again from Settings.',
+    denied: 'Authorization was cancelled on GitHub.', invalid: 'Authorization is invalid or has already been used. Start again from Settings.', redirectMismatch: 'GitHub rejected the callback URL. In the GitHub App settings, “Callback URL” must be exactly {url}.', suspended: 'The GitHub App is suspended. The administrator must reactivate it.', githubError: 'GitHub returned an error during authorization. Check the App settings and try again.', received: 'Parameters received', installed: 'The GitHub App is installed. Now press “Connect with GitHub” to authorize your account.', session: 'You need the same Sugar session that started the connection. Sign in and start again from Settings.',
     failure: 'The GitHub operation could not be completed. Try again.', busy: 'An operation is already running or a limit was reached. Wait before trying again.', forbidden: 'Your account and the App need write access to that repository. Also check that the installation is active.',
     quota: 'There is no space to save the authorization. Contact the administrator.', branchMissing: 'The branch does not exist on GitHub. Create it there or choose an existing one.', settingsConflict: 'Settings changed. Reload the project before saving the destination.', conflict: 'A different file already exists for this revision. It was not overwritten.',
     publicRequired: 'This repository is public. Explicitly confirm that you want to publish this project there.', excessive: 'The account exceeds the 1,000 installation or repository limit; no partial list was returned.',

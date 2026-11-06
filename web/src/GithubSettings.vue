@@ -27,7 +27,7 @@ onMounted(()=>run(async()=>{
   const callback=props.callback;emit('consumed')
   await refresh()
   if(!callback||!active)return
-  if('error' in callback) { failure.value=text(callback.error);return }
+  if('error' in callback) { failure.value=text(callback.error).replace('{url}',window.location.origin+'/oauth/github/callback')+(callback.received?.length?` (${text('received')}: ${callback.received.join(', ')})`:'');return }
   const result=await githubRequest('/me/github/complete',props.language,callback)
   if(active) { notice.value=text(result.remoteRevocationPending?'remoteReplace':'renewed');await refresh() }
 }))
