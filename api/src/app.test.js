@@ -52,6 +52,10 @@ test('HTTP contracts retain public routes, session cookies, authentication and e
   const request = (path, body, cookie) => fetch(base + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
   let res = await request('/health')
   assert.deepEqual(await res.json(), { ok: true }); assert.equal(calls.length, 0)
+  // Every API response carries a fresh server-generated request ID (#23 correlation).
+  const first = res.headers.get('x-request-id'), second = (await request('/health')).headers.get('x-request-id')
+  assert.match(first, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/); assert.notEqual(first, second)
+  assert.equal((await request('/audit')).status, 401)
   res = await request('/me'); assert.equal(res.status, 401); assert.deepEqual(await res.json(), { error: 'Sesión requerida' })
   res = await request('/me', null, 'session=invalid'); assert.equal(res.status, 401)
   res = await request('/public/projects/p'); assert.equal(res.status, 200)

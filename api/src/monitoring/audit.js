@@ -20,6 +20,9 @@ const rules = [
   ['PATCH', `/projects/(${uuid})/settings`, 'project.settings'],
   ['POST', `/projects/(${uuid})/share`, 'project.share_create'], ['DELETE', `/projects/(${uuid})/share`, 'project.share_revoke'],
   ['PUT', `/projects/(${uuid})/members`, 'project.members_update'], ['DELETE', `/projects/(${uuid})/members/${uuid}`, 'project.member_remove'],
+  ['GET', '/me/export', 'account.export'], ['POST', '/me/close', 'account.close'], ['POST', `/users/(${uuid})/reopen`, 'user.reopen'],
+  ['POST', `/trash/(?:project|block|image)/(${uuid})/restore`, 'trash.restore'], ['DELETE', `/trash/(?:project|block|image)/(${uuid})`, 'trash.purge'],
+  ['PUT', '/image-storage', 'storage.image_configure'], ['PUT', '/document-storage', 'storage.document_configure'], ['PUT', '/total-storage', 'storage.total_configure'],
   ['DELETE', `/projects/(${uuid})`, 'project.archive'], ['DELETE', `/blocks/(${uuid})`, 'block.archive'], ['DELETE', `/images/(${uuid})`, 'image.archive'],
 ].map(([method, path, operation]) => ({ method, path: new RegExp(`^${path}/?$`), operation }))
 
@@ -39,9 +42,9 @@ export function securityAudit({ write = event => console.log(JSON.stringify(even
         const event = {
           schema: 'sugar.audit.v1', at: now(), actor: identity(res.locals.auditActor) || identity(req.user?.id),
           operation: rule.operation, result: aborted ? 'aborted' : status >= 500 ? 'error' : status >= 400 ? 'denied' : 'success', status,
-          ...(resource ? { resource } : {}),
+          ...(resource ? { resource } : {}), ...(identity(req.requestId) ? { request_id: req.requestId } : {}),
         }
-        const failed = () => reportFailure('Audit output failed', {})
+        const failed = () => reportFailure('Audit output failed', {}, req.requestId)
         try { Promise.resolve(write(event)).catch(failed) } catch { failed() }
       }
       res.once('finish', () => record(false))

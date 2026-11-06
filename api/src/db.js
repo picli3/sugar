@@ -4,6 +4,7 @@ import { initSessionDb } from './auth/sessions.js'
 import { migrateImageAccess } from './images/migration.js'
 import { imageIds, recordImageReferences } from './images/references.js'
 import { initAiDb } from './ai.js'
+import { initAuditDb } from './monitoring/audit-store.js'
 import { migrateLibraryOwnership } from './library/migration.js'
 import pg from 'pg'
 import { bootstrapAdmin } from './auth/bootstrap.js'
@@ -87,6 +88,7 @@ export async function initDb() {
   await q(`UPDATE sync_jobs SET status='skipped',error='Configura un repositorio en el proyecto para sincronizar' WHERE kind='project' AND target_repository IS NULL AND status='pending'`)
   await q(`UPDATE sync_jobs SET status='skipped',error='La sincronización global de la biblioteca fue retirada' WHERE kind='block' AND status='pending'`)
   await initAiDb(q)
+  await initAuditDb(q)
   await bootstrapAdmin({ transaction })
   await migrateImageAccess(transaction)
   await initGalleryPaginationDb(q)

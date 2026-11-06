@@ -58,6 +58,11 @@ test('account export contains only the requester data, full history and no secre
   for (const secret of ['password_hash', '$2a$', '$2b$', 'share_token', 'auth_version']) assert.equal(all.includes(secret), false, secret)
   assert.equal(text(`projects/${projectId}/members.json`).includes(helper.email), true)
   assert.equal(all.replace(text(`projects/${projectId}/members.json`), '').includes(helper.email), false)
+  // The durable security log holds only the requester's own events (#23).
+  const log = JSON.parse(text('security-log.json'))
+  assert.ok(log.some(event => event.operation === 'project.share_create' && event.resource === projectId && event.result === 'success'))
+  assert.equal(log.some(event => event.operation === 'project.members_update' && event.resource === foreignId), false)
+  assert.equal(JSON.stringify(log).includes('actor'), false)
   // Another account cannot obtain this data.
   const other = readZip((await req('/me/export', helper.cookie)).body)
   assert.equal([...other.keys()].some(name => name.includes(projectId) || name.includes(blockId)), false)

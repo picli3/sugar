@@ -6,7 +6,7 @@ import { registerMfaRoutes } from './mfa/routes.js'
 import { createSecretBox } from './mfa/secrets.js'
 import express from 'express'
 import cookieParser from 'cookie-parser'
-import { asyncRoute, errorHandler } from './shared/http.js'
+import { asyncRoute, errorHandler, noStore } from './shared/http.js'
 import { requireAdmin, requireEdit } from './auth/policies.js'
 import { createSessionRepository } from './auth/sessions.js'
 import { createAccessControls, limitsConfig, proxyList } from './security/limits.js'
@@ -36,6 +36,7 @@ import { createProjectSyncService } from './github.js'
 import { registerSyncRoutes } from './github/routes.js'
 import { createReadiness, databaseProbe } from './monitoring/readiness.js'
 import { securityAudit } from './monitoring/audit.js'
+import { createAuditStore } from './monitoring/audit-store.js'
 import { registrationConfig as loadRegistrationConfig, emailFeatureConfig } from './registration/config.js'
 import { createRegistrationRepository, registrationSchemaReady } from './registration/repository.js'
 import { createRegistrationService } from './registration/service.js'
@@ -66,6 +67,8 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   app.set('trust proxy', proxyList(trustedProxies))
   app.disable('x-powered-by')
   app.disable('etag')
+  // Server-generated ID shared by the response header, audit event and failure log line.
+  app.use('/api', (req, res, next) => { req.requestId = crypto.randomUUID(); res.set('X-Request-Id', req.requestId); next() })
   app.use('/api', apiHeaders, requestOrigin(publicOrigin(origin)))
   const controls = createAccessControls({ secret, config: accessConfig })
   app.use('/api', controls.api)
@@ -138,6 +141,8 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   })
   registerProjectRoutes(app, projects)
   registerSyncRoutes(app, sync)
+  const auditStore = createAuditStore({ q })
+  app.get('/api/audit', noStore, asyncRoute(async (req, res) => res.json(await auditStore.list(req.user, req.query))))
   // Preserve the established AI module and its request-based policy interface.
   registerAi(app, {
     q, callProvider, quota: createAiQuotas({ q, transaction, storage: createAiStorage(createDocumentStorageRepository(q)) }),

@@ -1,6 +1,7 @@
 import './config/load-env.js'
 import { reportFailure } from './shared/logging.js'
 import { createApp } from './app.js'
+import { createAuditStore } from './monitoring/audit-store.js'
 import { q, pool, transaction, signingSecret } from './db.js'
 import { verifyRuntime } from './database/access.js'
 import { enqueue, startSync, syncOne } from './github.js'
@@ -25,7 +26,10 @@ async function start() {
   if (recovery.enabled && !(await recoverySchemaReady(q))) throw Object.assign(Error('Account recovery requires database migration'), { code: 'DATABASE_CONFIG' })
   const mail = createMailService({ q })
   if (registration.enabled || recovery.enabled) await mail.assertConfigured()
-  const app = createApp({ q, transaction, secret, enqueue, syncOne, registrationConfig: registration, recoveryConfig: recovery, mailService: mail })
+  // Audit events go to stdout (container log) and the durable table; a failed insert never alters the response.
+  const auditStore = createAuditStore({ q })
+  const auditWriter = event => { console.log(JSON.stringify(event)); return auditStore.write(event) }
+  const app = createApp({ q, transaction, secret, enqueue, syncOne, auditWriter, registrationConfig: registration, recoveryConfig: recovery, mailService: mail })
   startSync()
   const listener = app.listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log('API ready', listener.address().port))
 }

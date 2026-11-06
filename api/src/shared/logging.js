@@ -8,4 +8,8 @@ export function failureCode(error) {
   return 'UNEXPECTED_ERROR'
 }
 const events = new Set(['HTTP request failed','GitHub sync failed','GitHub worker failed','GitHub retry failed','Database startup retry','API startup failed','Database migration failed','Database pool error','Audit output failed'])
-export function reportFailure(event, error) { console.error(`${events.has(event) ? event : 'Application error'}: ${failureCode(error)}`) }
+// The optional request ID (a server-generated UUID) correlates a failure with its audit event and X-Request-Id.
+export function reportFailure(event, error, requestId) {
+  const request = typeof requestId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestId) ? ` request=${requestId}` : ''
+  console.error(`${events.has(event) ? event : 'Application error'}: ${failureCode(error)}${request}`)
+}

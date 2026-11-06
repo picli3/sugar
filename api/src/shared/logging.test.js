@@ -36,3 +36,11 @@ test('unexpected HTTP and GitHub errors expose only fixed codes, not credentials
   assert.equal(logs.join('').includes(secret),false)
   assert.equal(failureCode({code:secret}),'UNEXPECTED_ERROR')
 })
+
+test('failure log lines carry only a server-generated request ID for correlation', t => {
+  const saved = console.error, logs = []; console.error = (...parts) => logs.push(parts.join(' ')); t.after(() => { console.error = saved })
+  const id = '33333333-3333-4333-8333-333333333333'
+  errorHandler(Error('private detail'), { requestId: id }, { status: () => ({ json: () => {} }) }, () => {})
+  reportFailure('HTTP request failed', {}, 'forged value\nAudit output failed')
+  assert.deepEqual(logs, [`HTTP request failed: UNEXPECTED_ERROR request=${id}`, 'HTTP request failed: UNEXPECTED_ERROR'])
+})

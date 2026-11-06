@@ -23,7 +23,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
       { id: 'data', heading: 'Qué datos guarda Sugar', paragraphs: ['Sólo lo necesario para que la aplicación funcione:'], items: [
         'Cuenta: correo, contraseña almacenada sólo como hash, rol, idioma, tema y un nombre público opcional.',
         'Contenido: tus proyectos, bloques, categorías e imágenes, con su historial de revisiones y versiones, y los análisis de IA que solicites.',
-        'Seguridad: sesiones con sus fechas de inicio y caducidad, y un registro de operaciones sensibles con el identificador de la cuenta, la operación y su resultado (sin dirección IP ni correo).',
+        'Seguridad: sesiones con sus fechas de inicio y caducidad, y un registro de operaciones sensibles con el identificador de la cuenta, la operación y su resultado (sin dirección IP ni correo), que se conserva 180 días.',
         'Las imágenes subidas se vuelven a codificar y se eliminan sus metadatos (por ejemplo, ubicación o cámara).',
       ] },
       { id: 'visibility', heading: 'Visibilidad, enlaces e identidad', paragraphs: [], items: [
@@ -56,7 +56,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
         'Los registros técnicos rotan automáticamente por tamaño.',
       ] },
       { id: 'rights', heading: 'Tus datos y tus contenidos', paragraphs: [
-        'Desde Configuración puedes editar tu perfil, descargar todos tus datos en un ZIP (proyectos y bloques con su historial, imágenes, categorías y análisis) y cerrar tu cuenta.',
+        'Desde Configuración puedes editar tu perfil, descargar todos tus datos en un ZIP (proyectos y bloques con su historial, imágenes, categorías, análisis y tu registro de operaciones sensibles) y cerrar tu cuenta.',
         `Para cualquier otra solicitud sobre tus datos escribe a ${supportEmail}.`,
         'Eres responsable del contenido que subes y de tener derecho a usarlo. Esta descripción no establece condiciones sobre la propiedad o la licencia de tus contenidos; quedan pendientes de revisión legal.',
       ] },
@@ -76,7 +76,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
       { id: 'data', heading: 'What data Sugar keeps', paragraphs: ['Only what the application needs to work:'], items: [
         'Account: email, password stored only as a hash, role, language, theme and an optional public name.',
         'Content: your projects, blocks, categories and images, with their revision and version history, and the AI analyses you request.',
-        'Security: sessions with their start and expiry times, and a log of sensitive operations with the account identifier, the operation and its result (no IP address or email).',
+        'Security: sessions with their start and expiry times, and a log of sensitive operations with the account identifier, the operation and its result (no IP address or email), kept for 180 days.',
         'Uploaded images are re-encoded and their metadata (for example location or camera) is removed.',
       ] },
       { id: 'visibility', heading: 'Visibility, links and identity', paragraphs: [], items: [
@@ -109,7 +109,7 @@ export const privacyContent: Record<'es' | 'en', PrivacyContent> = {
         'Technical logs rotate automatically by size.',
       ] },
       { id: 'rights', heading: 'Your data and your content', paragraphs: [
-        'From Settings you can edit your profile, download all your data as a ZIP (projects and blocks with their history, images, categories and analyses) and close your account.',
+        'From Settings you can edit your profile, download all your data as a ZIP (projects and blocks with their history, images, categories, analyses and your sensitive-operation log) and close your account.',
         `For any other request about your data, write to ${supportEmail}.`,
         'You are responsible for the content you upload and for having the right to use it. This description sets no terms about the ownership or licensing of your content; those are pending legal review.',
       ] },
