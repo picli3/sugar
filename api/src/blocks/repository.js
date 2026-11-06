@@ -32,6 +32,11 @@ export function createBlockRepository(query) {
         FROM blocks b JOIN block_versions v ON v.block_id=b.id AND v.version=b.latest_version
         WHERE b.id=$1 AND b.deleted_at IS NULL`, [id])).rows[0]
     },
+    // Current versions of the readable, untrashed blocks among `ids` (#33). Unreadable ones are omitted.
+    async latestVersions(ids, user) {
+      return (await query(`SELECT id,latest_version FROM blocks WHERE id=ANY($1::uuid[]) AND deleted_at IS NULL
+        AND (owner_id IS NULL OR owner_id=$2 OR $3='Admin')`, [ids, user.id, user.role])).rows
+    },
     async find(id, execute = query, lock = false) {
       return (await execute(`SELECT id,owner_id FROM blocks WHERE id=$1 AND deleted_at IS NULL${lock ? ' FOR UPDATE' : ''}`, [id])).rows[0]
     },

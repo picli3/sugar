@@ -24,6 +24,13 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
       return page.items
     },
     page: (user, query) => loadPage(user, identifierPageInput(query)),
+    // Lets the editor flag instances whose library block has a newer version (#33).
+    async latestVersions(user, input) {
+      const ids = input?.ids
+      if (!Array.isArray(ids) || ids.length > 500 || new Set(ids).size !== ids.length || ids.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) error(400, 'Lista de bloques inválida / Invalid block list')
+      if (!ids.length) return { versions: {} }
+      return { versions: Object.fromEntries((await blocks.latestVersions(ids, user)).map(row => [row.id, row.latest_version])) }
+    },
     async get(id, user) {
       await get(id, user)
       const block = requireLibraryAccess(await blocks.current(id), user)

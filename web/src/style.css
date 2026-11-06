@@ -142,3 +142,12 @@ html,body,#app{height:100%;overflow:hidden}
 .github-check input { flex: 0 0 auto; width: auto; margin-top: .25rem; }
 .github-current { overflow-wrap: anywhere; }
 .github-settings a { overflow-wrap: anywhere; color: var(--accent); }
+
+/* #32/#33: notes and outdated-version badges in the block header. */
+.node-header strong{flex:1;min-width:0}
+.node-badges{display:inline-flex;gap:4px;margin-left:auto;flex-shrink:0}
+.node-badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;cursor:help}
+.node-badge .ui-icon{width:14px;height:14px}
+.node-badge.notes{background:var(--accent-deep);color:var(--accent);border:1px solid var(--accent)}
+.node-badge.outdated{background:#fff4d6;color:#8a5a00;border:1px solid #c98a00}
+.app-shell:not(.light) .node-badge.outdated{background:#3a2e12;color:#ffd27a;border-color:#c98a00}
