@@ -166,9 +166,9 @@ Los fallos inesperados HTTP, GitHub y arranque registran códigos permitidos; no
 
 ## Liveness y readiness (#23, etapa 1)
 
-`GET /api/health` confirma solo que Express responde. `GET /api/ready` consulta el marcador de esquema con el pool/rol reales y devuelve únicamente `{ok:true}` (200) o `{ok:false}` (503), sin autenticación ni diagnósticos. Tiene deadline HTTP de 1,5 segundos, una comprobación compartida, caché de un segundo y los límites API existentes. Compose y los verificadores de despliegue usan readiness. Ver [alcance, límites y ensayos de fallo/recuperación](../deploy/monitoring/README.md). Las alertas externas y la auditoría de operaciones siguen pendientes.
+`GET /api/health` confirma solo que Express responde. `GET /api/ready` consulta el marcador de esquema con el pool/rol reales y devuelve únicamente `{ok:true}` (200) o `{ok:false}` (503), sin autenticación ni diagnósticos. Tiene deadline HTTP de 1,5 segundos, una comprobación compartida, caché de un segundo y los límites API existentes. Compose y los verificadores de despliegue usan readiness. Ver [alcance, límites y ensayos de fallo/recuperación](../deploy/monitoring/README.md). La auditoría durable y el monitor de alertas están descritos en el mismo documento.
 
-La etapa 2a de #23 añade eventos JSON de seguridad `sugar.audit.v1` a stdout para accesos y escrituras seleccionados, con UUID de actor/recurso y resultado HTTP. Excluye cuerpos, URLs, emails, tokens e IDs de sesión; desconexiones se registran como intento abortado, no como commit SQL confirmado. Ver retención por capacidad, redacción y pendientes de durabilidad/alertas en [monitoring](../deploy/monitoring/README.md).
+La etapa 2a de #23 añade eventos JSON de seguridad `sugar.audit.v1` a stdout para accesos y escrituras seleccionados, con UUID de actor/recurso y resultado HTTP. Excluye cuerpos, URLs, emails, tokens e IDs de sesión; desconexiones se registran como intento abortado, no como commit SQL confirmado. La etapa 2b los guarda además en `audit_events` (180 días), con el `X-Request-Id` de cada respuesta para correlacionarlos con los registros de fallos; los Admin los consultan en `GET /api/audit` (Configuración → Registro de seguridad) y cada cuenta recibe los suyos en la exportación. Ver [monitoring](../deploy/monitoring/README.md).
 
 ## Registration and application email
 

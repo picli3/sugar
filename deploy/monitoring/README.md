@@ -35,4 +35,62 @@ La salida por defecto es stdout; no se añaden tablas, archivos, timers, colas i
 
 El escritor se inyecta al componer la aplicación para pruebas. Un receptor simulado síncrono/asíncrono que falla produce solo `Audit output failed: UNEXPECTED_ERROR`; no altera la respuesta, imprime el diagnóstico o reintenta envíos. No se configura transporte real en esta fase. Las pruebas cubren esquema cerrado/redacción, actor forjado, casing/encoding, recurso y sesión, rutas excluidas, resultados HTTP, aborto y escritor fallido; el contrato de login real de la app comprueba la atribución solo al entrar correctamente.
 
-Pendientes: auditoría durable/correlación de cambios confirmados, cobertura de otras operaciones necesarias, métricas/umbrales, política de alertas y receptor simulado de alertas. La auditoría HTTP no equivale a tener alertas activas; #23 continúa abierto.
+Durabilidad, correlación, métricas y alertas: ver las etapas 2b y 3 más abajo.
+
+## Auditoría durable y correlación — #23, etapa 2b
+
+Cada respuesta de `/api` lleva `X-Request-Id`, un UUID generado por el servidor (nunca aceptado del cliente). El mismo ID aparece en el evento de auditoría (`request_id`) y en las líneas de fallo (`HTTP request failed: CODE request=<uuid>`, `Audit output failed: … request=<uuid>`). Con el ID que muestra el navegador o el panel se localiza la petición en los logs sin registrar IP, cuerpos ni URLs.
+
+En producción el escritor envía cada evento a stdout **y** a la tabla `audit_events` (`at`, `request_id`, `actor`, `operation`, `result`, `status`, `resource`; sin email, IP, cuerpo ni texto de error). Restricciones CHECK impiden operaciones/resultados fuera del catálogo. La retención es de **180 días**: al escribir, como máximo una vez por hora y proceso, se borran en lotes de 5.000 los eventos más antiguos. No hay timers ni tareas extra.
+
+Correlación con cambios confirmados: los servicios responden después de confirmar su transacción, así que `success` en una ruta auditada significa que el cambio se confirmó. Un `error` significa que la transacción no llegó a responder con éxito (rollback o fallo posterior). `aborted` (cliente desconectado) sigue siendo indeterminado: el cambio puede haberse confirmado. La inserción del evento ocurre después de la respuesta y fuera de la transacción de negocio: si la base cae justo entonces, el evento se pierde de la tabla pero queda en stdout y se emite `Audit output failed`. No es un registro transaccional de commits SQL.
+
+Cobertura añadida: exportación y cierre de cuenta, reapertura por Admin, restaurar y purgar papelera, configuración de cuotas de imágenes/documentos/total. Consulta: `GET /api/audit?limit=&before=&result=&operation=` sólo para Admin (paginación por cursor, máximo 100), visible en Configuración → Registro de seguridad. Cada cuenta recibe sus propios eventos en `security-log.json` de la exportación (sin el campo actor). La descripción de privacidad indica la retención.
+
+## Métricas y alertas — #23, etapa 3
+
+`deploy/monitoring/check.py` es un monitor de una sola ejecución para el servidor. No instala nada ni se ejecuta solo: el propietario decide destino y programación.
+
+| Comprobación | Fuente | Umbral por defecto |
+| --- | --- | --- |
+| `ready` | `--ready-url` debe responder 200 `{"ok":true}` | crítico si falla |
+| `disk:N` | sistema de archivos de cada `--disk` | aviso ≥ 80 %, crítico ≥ 90 % |
+| `backup` | `.dump`/`.dump.age` más reciente en `--backup-dir` | desactivado (`--backup-max-age-hours 0`) |
+| `sync_pending`, `sync_oldest`, `sync_failed` | `sync_jobs` | > 20 pendientes, > 60 min el más antiguo, > 0 fallidos/bloqueados en 24 h |
+| `ai_failed`, `ai_stuck` | `ai_calls` | > 3 fallidas/inciertas en 24 h, > 0 reservadas hace más de 15 min |
+| `http_errors`, `denied` | `audit_events` | > 5 errores (crítico) o > 50 rechazos en 1 h |
+| `db_size` | `pg_database_size` | desactivado (`--db-max-bytes 0`) |
+| `metrics` | el comando SQL no respondió o devolvió datos inválidos | crítico |
+
+Los backups actuales sólo se crean antes de cada despliegue, por eso la edad está desactivada por defecto; activarla cuando existan copias periódicas (#11). Las métricas SQL se obtienen con un comando que elige el operador (argv JSON, sin shell) que lee la consulta por stdin, por ejemplo `docker exec -i sugar-db-1 psql -U designer -d hardware_designer -At -v ON_ERROR_STOP=1`. La consulta es fija y sólo cuenta filas; no lee contenidos.
+
+Salida: una línea JSON `sugar.monitor.v1` con alertas y métricas agregadas; código 0 sin alertas, 1 con alertas, 2 si el monitor no pudo notificar o guardar su estado. Nunca imprime la URL del webhook, errores SQL ni datos personales.
+
+Notificación: con `--webhook-url-file` (archivo modo 600 con una URL `https`; `http` sólo a localhost para pruebas) envía un POST JSON `sugar.alert.v1` con `firing` y `resolved`. Con `--state-file` (se escribe en modo 600) sólo notifica cuando cambia el conjunto o la severidad de las alertas, cuando se resuelven y como recordatorio cada `--repeat-hours` (24 h). Si el envío falla, no avanza el estado y el siguiente ciclo reintenta. El formato sirve para receptores genéricos de webhooks (por ejemplo un relay a correo, Slack o ntfy) que el propietario elija.
+
+Pruebas: `python3 -m unittest discover -s deploy/monitoring -p 'test_*.py'` (en CI) usa un receptor HTTP local simulado: umbrales, deduplicación, recordatorio, cambio de severidad, resolución, fallo del receptor y reintento, permisos/esquema del webhook, backups y fallo de métricas sin diagnósticos. Además se ensayó en una instalación desechable: base de datos detenida → `ready` y `metrics` críticos con una sola notificación; recuperación → mensaje `resolved`.
+
+### Activación (pendiente del propietario)
+
+No se ha instalado en producción. Ejemplo de temporizador systemd cada 5 minutos, a revisar antes de usarlo:
+
+```ini
+# /etc/systemd/system/sugar-monitor.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /srv/sugar/monitoring/check.py --label produccion \
+  --ready-url https://DOMINIO/api/ready --disk /srv/sugar --disk /var/lib/docker \
+  --backup-dir /srv/sugar/backups \
+  --sql-command '["docker","exec","-i","sugar-db-1","psql","-U","designer","-d","hardware_designer","-At","-v","ON_ERROR_STOP=1"]' \
+  --state-file /var/lib/sugar-monitor/state.json --webhook-url-file /etc/sugar-monitor/webhook.url
+StateDirectory=sugar-monitor
+
+# /etc/systemd/system/sugar-monitor.timer
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+[Install]
+WantedBy=timers.target
+```
+
+Decisiones del propietario: destino de las alertas (servicio de webhooks y quién las recibe), umbrales definitivos y la orden de instalarlo durante una liberación explícita.
