@@ -13,6 +13,7 @@ github.json         Cuenta GitHub y destinos propios, sin credenciales / own Git
 categories.json     Tus categorías / your categories
 projects/<id>/      Tus proyectos: current.yaml, revisions/<n>.yaml, revisions.json, settings-history.json, members.json, analyses/<id>.json
 blocks/<id>/        Tus bloques personales: block.json, versions/<n>.yaml, versions.json
+schematics/         Esquemas de tus bloques y proyectos / schematics in your blocks and projects
 images/             Tus imágenes personales (images.json + archivos) / your personal images
 
 "trashed_at" marca elementos en la papelera / marks items in the trash.
@@ -88,6 +89,18 @@ export function createAccountExport({ transaction, maxConcurrent = 2 }) {
             await zip.add(`${base}versions/${version}.yaml`, content, row.created_at)
           }
           await zip.add(base + 'versions.json', json(versions), now)
+        }
+        const schematics = await rows(`SELECT s.id,s.name FROM schematics s WHERE EXISTS(
+          SELECT 1 FROM schematic_references r
+          LEFT JOIN blocks b ON r.resource_kind='block' AND b.id=r.resource_id
+          LEFT JOIN projects p ON r.resource_kind='project' AND p.id=r.resource_id
+          WHERE r.schematic_id=s.id AND (b.owner_id=$1 OR p.created_by=$1)) ORDER BY s.id`, [user.id])
+        if (schematics.length) {
+          for (const file of schematics) {
+            const [{ data }] = await rows('SELECT data FROM schematics WHERE id=$1', [file.id])
+            await zip.add(`schematics/${file.id}.kicad_sch`, data, now)
+          }
+          await zip.add('schematics/index.json', json(schematics), now)
         }
         const images = []
         for (const image of await rows(`SELECT id,name,mime,created_at,deleted_at AS trashed_at FROM images

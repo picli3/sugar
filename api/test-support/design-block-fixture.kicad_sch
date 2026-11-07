@@ -1,0 +1,12 @@
+(kicad_sch
+  (version 20250114)
+  (generator "sugar_fixture")
+  (uuid "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+  (paper "A4")
+  (lib_symbols)
+  (text "Synthetic Sugar fixture"
+    (at 50 50 0)
+    (effects (font (size 1.27 1.27)))
+    (uuid "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+  )
+)

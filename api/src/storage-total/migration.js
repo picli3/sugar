@@ -9,6 +9,8 @@ export const usageSql = `SELECT
   (SELECT COALESCE(sum(bytes),0) FROM (
     SELECT octet_length(yaml)::bigint+octet_length(name) AS bytes FROM projects
     UNION ALL SELECT octet_length(name) FROM blocks
+    UNION ALL SELECT octet_length(data)::bigint+octet_length(name) FROM schematics
+    UNION ALL SELECT 96::bigint FROM schematic_references
     UNION ALL SELECT octet_length(yaml)::bigint+octet_length(summary) FROM project_revisions
     UNION ALL SELECT octet_length(yaml)::bigint+octet_length(summary) FROM block_versions
     UNION ALL SELECT octet_length(before::text)::bigint+octet_length(after::text) FROM project_settings_history
@@ -35,6 +37,7 @@ export const usageSql = `SELECT
 const textBytes = field => `COALESCE(octet_length(value->>'${field}'),0)::bigint`
 const jsonBytes = field => `CASE WHEN value->'${field}' IS NULL OR value->'${field}'='null'::jsonb THEN 0 ELSE octet_length((value->'${field}')::text)::bigint END`
 const sizes = {
+  schematic_references: ['96'],
   projects: ['yaml','name'].map(textBytes), blocks: [textBytes('name')],
   project_revisions: ['yaml','summary'].map(textBytes), block_versions: ['yaml','summary'].map(textBytes),
   project_settings_history: ['before','after'].map(jsonBytes),
@@ -55,7 +58,7 @@ const sizes = {
   mfa_credentials: ['256', ...['secret_box','pending_box','recovery_hashes'].map(jsonBytes), textBytes('challenge_hash')],
 }
 const sizeCases = Object.entries(sizes).map(([table, fields]) => `WHEN '${table}' THEN ${fields.join('+')}`).join('\n      ')
-export const totalStorageTables = ['images', ...Object.keys(sizes)]
+export const totalStorageTables = ['images', 'schematics', ...Object.keys(sizes)]
 // Counted but never rejected: sign-in and account recovery must keep working while
 // storage is full, and settled analyses were already admitted by their AI reservation.
 const unenforced = ['user_sessions','account_actions','project_analyses','mfa_credentials']
@@ -90,10 +93,12 @@ export async function initTotalStorage(q, transaction) {
     BEGIN
       IF TG_OP<>'DELETE' THEN
         IF TG_TABLE_NAME='images' THEN fresh := octet_length(NEW.data)::bigint+octet_length(NEW.name)+octet_length(NEW.mime);
+        ELSIF TG_TABLE_NAME='schematics' THEN fresh := octet_length(NEW.data)::bigint+octet_length(NEW.name);
         ELSE fresh := sugar_storage_row_bytes(TG_TABLE_NAME,to_jsonb(NEW)); END IF;
       END IF;
       IF TG_OP<>'INSERT' THEN
         IF TG_TABLE_NAME='images' THEN prior := octet_length(OLD.data)::bigint+octet_length(OLD.name)+octet_length(OLD.mime);
+        ELSIF TG_TABLE_NAME='schematics' THEN prior := octet_length(OLD.data)::bigint+octet_length(OLD.name);
         ELSE prior := sugar_storage_row_bytes(TG_TABLE_NAME,to_jsonb(OLD)); END IF;
       END IF;
       delta := fresh-prior;
@@ -102,7 +107,7 @@ export async function initTotalStorage(q, transaction) {
       SELECT value INTO limits FROM total_storage_config WHERE id=true FOR SHARE;
       IF limits IS NULL THEN RAISE EXCEPTION 'Total storage configuration missing' USING ERRCODE='PZ002'; END IF;
       bucket := CASE WHEN TG_TABLE_NAME='images' THEN 'images'
-        WHEN TG_TABLE_NAME IN ('projects','blocks','project_revisions','block_versions','project_settings_history') THEN 'documents'
+        WHEN TG_TABLE_NAME IN ('projects','blocks','project_revisions','block_versions','project_settings_history','schematics','schematic_references') THEN 'documents'
         WHEN TG_TABLE_NAME IN ('project_analyses','ai_calls') THEN 'ai'
         WHEN TG_TABLE_NAME='sync_jobs' THEN 'sync'
         WHEN TG_TABLE_NAME='block_categories' THEN 'categories' ELSE 'config' END;

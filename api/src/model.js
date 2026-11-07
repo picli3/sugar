@@ -1,4 +1,5 @@
 import YAML from 'yaml'
+import { schematicUrlId } from './schematics/format.js'
 
 const directions = ['in', 'out', 'bidirectional']
 const fail = (message) => { throw Object.assign(new Error(message), { status: 400 }) }
@@ -85,6 +86,7 @@ function validateBlockValue(b) {
     if (typeof b.image !== 'string' || b.image.length > 2048 || !(b.image.startsWith('https://') || /^\/api\/images\/[0-9a-f-]{36}\/content$/.test(b.image))) fail('image debe ser una URL HTTPS o una ruta de la galería')
     if (b.image.startsWith('https://')) { try { new URL(b.image) } catch { fail('URL de imagen inválida') } }
   }
+  if (b.design_block_kicad != null && !schematicUrlId(b.design_block_kicad)) fail('design_block_kicad debe apuntar a un esquema del servidor / design_block_kicad must point to a schematic on this server')
   if (b.properties != null && !object(b.properties)) fail('properties debe ser un mapa')
   if (b.properties) {
     const keys = Object.keys(b.properties)

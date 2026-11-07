@@ -25,6 +25,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     document_storage_config: 'value jsonb', users: 'email text,password_hash text,role text,display_name text',
     project_members: 'project_id uuid,user_id uuid,role text', user_sessions: 'id uuid,user_id uuid',
     image_references: 'image_id uuid,resource_kind text,resource_id uuid',
+    schematics: 'name text,data bytea', schematic_references: 'schematic_id uuid,resource_kind text,resource_id uuid,current boolean',
     pending_registrations: 'email text,token_hash text,language text',
     mfa_credentials: "secret_box jsonb,pending_box jsonb,recovery_hashes text[] NOT NULL DEFAULT '{}',challenge_hash text",
     github_links: 'id uuid', github_oauth_states: 'id uuid', github_project_grants: 'id uuid',
@@ -78,6 +79,15 @@ test('total logical quota serializes writers and rolls back over-budget transact
     try { await client.query('SET ROLE sugar_runtime'); await client.query(sql, args) }
     finally { await client.query('RESET ROLE'); client.release() }
   }
+  const beforeFile = (await storage.configuration()).usage
+  const attachment = ['fixture.kicad_sch', Buffer.from('schematic bytes')]
+  await configure({ platformBytes: Number(beforeFile.total) })
+  await assert.rejects(scoped('INSERT INTO schematics VALUES($1,$2)', attachment), { code: 'PZ001' })
+  await configure({ platformBytes: 1_000_000 })
+  await scoped('INSERT INTO schematics VALUES($1,$2)', attachment)
+  assert.equal(Number((await storage.configuration()).usage.documents), Number(beforeFile.documents) + Buffer.byteLength(attachment[0]) + attachment[1].length)
+  await scoped('DELETE FROM schematics WHERE name=$1', [attachment[0]])
+  assert.deepEqual((await storage.configuration()).usage, beforeFile)
   let races = await Promise.allSettled([scoped('INSERT INTO ai_calls VALUES($1,$2,$3)', ['abc','ok',actor]), scoped('INSERT INTO ai_calls VALUES($1,$2,$3)', ['def','ok',actor])])
   assert.equal(races.filter(result => result.status === 'fulfilled').length, 1)
   assert.equal(races.filter(result => result.status === 'rejected' && result.reason.code === 'PZ001').length, 1)

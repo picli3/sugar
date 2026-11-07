@@ -1,3 +1,5 @@
+import { purgeSchematicReferences } from '../schematics/repository.js'
+
 // Trash: soft-deleted projects, blocks and images, restorable until an explicit purge.
 // Purges delete dependent rows explicitly (foreign keys are NO ACTION) inside one transaction.
 export const trashRetentionDays = 30
@@ -39,6 +41,7 @@ export function createTrashRepository(query) {
       return (await tx(`UPDATE ${tables[kind].table} SET deleted_at=NULL WHERE id=$1 AND deleted_at IS NOT NULL`, [id])).rowCount
     },
     async purge(kind, id, tx) {
+      if (kind !== 'image') await purgeSchematicReferences(tx, kind, id)
       if (kind === 'project') {
         await tx("DELETE FROM image_references WHERE resource_kind='project' AND resource_id=$1", [id])
         await tx("DELETE FROM sync_jobs WHERE kind='project' AND record_id=$1", [id])

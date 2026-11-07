@@ -3,7 +3,7 @@ import type { CategoryIconKey, CategoryIconMap } from './categoryIcons'
 export type Role = 'view' | 'dev' | 'Admin'
 export type User = { id: string; email: string; role: Role; language: 'es' | 'en'; theme: 'dark' | 'light'; display_name?: string | null; closed_at?: string | null; active?: boolean }
 export type Port = { id: string; label: string; protocol: string; direction: 'in' | 'out' | 'bidirectional'; maxConnections?: number; color?: string }
-export type Block = { name: string; function: string; model?: string; image?: string; color?: string; category?: string; subcategory?: string; properties?: Record<string, unknown>; ports: Port[] }
+export type Block = { name: string; function: string; model?: string; image?: string; design_block_kicad?: string; color?: string; category?: string; subcategory?: string; properties?: Record<string, unknown>; ports: Port[] }
 export type DiagramNode = { id: string; position: { x: number; y: number }; block: Block; libraryId?: string; libraryVersion?: number }
 export type DiagramEdge = { id: string; source: string; target: string; sourcePort: string; targetPort: string; route?: EdgeRoute }
 export type Diagram = { name: string; nodes: DiagramNode[]; edges: DiagramEdge[] }

@@ -547,3 +547,12 @@ Block headers on the board show small badges (`web/src/nodeBadges.ts`):
 - **Outdated (#33):** an instance whose `libraryVersion` is lower than its library block's current version shows an “outdated” badge (`v1 → v2`). The editor asks `POST /api/blocks/latest-versions { ids }` (at most 500 unique UUIDs) when a project opens; the API answers only for untrashed blocks the caller can read (own personal blocks, the shared catalog, or everything for Admin), so it never reveals other accounts' libraries. The inspector button, previously labelled “Updated”, now reads “Update to version N” and works even when that block's library page was not loaded. Public and shared views show no version state, because anonymous readers cannot read the library.
 
 Badges meet WCAG AA contrast in both themes (axe clean on the board in light and dark). Unit tests cover the helpers and the endpoint's validation; the HTTP suite checks cross-account isolation, catalog visibility, version bumps and trashed blocks; the browser check covers both badges, live notes, updating from the inspector and the public view.
+
+
+## KiCad design blocks (#34)
+
+When creating or editing a library block, select a single `.kicad_sch` file up to 1 MB and save the block. The library detail, board badge and block inspector offer the download. Sugar stores the original bytes and writes a same-server `design_block_kicad` URL into the YAML. Replacing or removing the file affects the new block version. Existing project snapshots and earlier block versions keep their original attachment. A schematic that references additional hierarchical sheets still needs those files in KiCad.
+
+`POST /api/blocks` and `PUT /api/blocks/:id` accept optional `designBlock: { name, data }` with standard base64 data. A save with this field replaces the YAML URL with the new attachment. Omit the YAML key to remove it. The file, references and block version commit together. Downloads use the existing library and project access rules. Anonymous and private share views can download files referenced by the current project revision.
+
+Run the usual database migration before starting this version. Schematic bytes count toward total storage, the account export includes schematics referenced by owned blocks and projects, and permanent deletion releases a file once no retained block or project references it.

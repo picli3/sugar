@@ -7,7 +7,7 @@ import { normalizeColorLiterals, stringify, validateProject, revisionSummary } f
 import { repositorySettings } from './validation.js'
 import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPageInput, identifierPageInput, identifierPageResult } from '../shared/pagination.js'
 
-export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {}, syncTargets }) {
+export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {}, attachSchematics = async () => {}, syncTargets }) {
   const get = async (id, user, options, tx, lock = false) => {
     const project = requireProjectAccess(await projects.find(id, user.id, tx, lock), user, options)
     return person({ ...project, permissions: projectPermissions(project, user) }, user, 'creator')
@@ -78,6 +78,7 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
       await write(id, async tx => {
         await projects.create(id, project.name, yaml, user.id, tx)
         await attachImages(yaml, 'project', id, user, tx)
+        await attachSchematics(project, 'project', id, user, tx)
         await projects.addRevision(id, 1, yaml, user.id, summary, tx)
       })
       return { id, revision: 1 }
@@ -138,6 +139,7 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
         if (!saved) error(409, 'El proyecto cambió; recarga antes de guardar')
         const revision = saved.revision
         await attachImages(yaml, 'project', id, user, tx)
+        await attachSchematics(project, 'project', id, user, tx)
         await projects.addRevision(id, revision, yaml, user.id, summary, tx)
         if (current.sync_repository) await enqueue('project', id, revision, yaml, tx, { repository: current.sync_repository, branch: current.sync_branch })
         return revision
@@ -180,6 +182,7 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
         if (!saved) error(409, 'El proyecto cambió; recarga antes de restaurar')
         const revision = saved.revision
         await attachImages(yaml, 'project', id, user, tx)
+        await attachSchematics(doc, 'project', id, user, tx)
         await projects.addRevision(id, revision, yaml, user.id, `Restaurada revisión ${wanted}`, tx)
         if (current.sync_repository) await enqueue('project', id, revision, yaml, tx, { repository: current.sync_repository, branch: current.sync_branch })
         return revision

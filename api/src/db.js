@@ -1,3 +1,4 @@
+import { initSchematicsDb } from './schematics/repository.js'
 import { initGithubTargetsDb } from './github-link/targets.js'
 import { initGithubLinkDb } from './github-link/migration.js'
 import { initSessionDb } from './auth/sessions.js'
@@ -148,5 +149,6 @@ export async function initDb() {
   await initAccountClosureDb(q)
   await initGithubLinkDb(q)
   await initGithubTargetsDb(q)
+  await initSchematicsDb(q)
   await initTotalStorage(q, transaction)
 }

@@ -151,3 +151,8 @@ html,body,#app{height:100%;overflow:hidden}
 .node-badge.notes{background:var(--accent-deep);color:var(--accent);border:1px solid var(--accent)}
 .node-badge.outdated{background:#fff4d6;color:#8a5a00;border:1px solid #c98a00}
 .app-shell:not(.light) .node-badge.outdated{background:#3a2e12;color:#ffd27a;border-color:#c98a00}
+
+.schematic-field { margin-block: 1rem; overflow-wrap: anywhere; }
+.node-badge.schematic { color: var(--accent); cursor: pointer; pointer-events: auto; text-decoration: none; }
+.has-custom-color .node-badge.schematic { color: inherit; }
+.catalog-schematic { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; }

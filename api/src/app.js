@@ -1,3 +1,6 @@
+import { createSchematicRepository } from './schematics/repository.js'
+import { createSchematicService } from './schematics/service.js'
+import { registerSchematicRoutes } from './schematics/routes.js'
 import { registerGithubLinkRoutes } from './github-link/routes.js'
 import { createGithubIntegration } from './github-link/integration.js'
 import { createMfaRepository } from './mfa/repository.js'
@@ -88,13 +91,14 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   const github = createGithubIntegration({ q, transaction, env: githubEnv, client: githubClient, runCredential: controls.runCredential })
   const imageStorage = createImageStorage({ q, transaction })
   const documentStorage = createDocumentStorage({ repository: createDocumentStorageRepository(q), transaction })
+  const schematics = createSchematicService(createSchematicRepository(q))
   const images = createImageService(createImageRepository(q), imageStorage)
   const migrateEmbeddedImages = (yaml, kind, tx, options) => replaceEmbeddedImages(yaml, kind, tx, { ...options, storage: imageStorage })
   const projects = createProjectService({
     projects: createProjectRepository(q), transaction, enqueue, syncTargets: github.targets, storage: documentStorage,
-    categoryIcons: yaml => projectCategoryIcons(yaml, q), replaceEmbeddedImages: migrateEmbeddedImages, attachImages: images.attach,
+    categoryIcons: yaml => projectCategoryIcons(yaml, q), replaceEmbeddedImages: migrateEmbeddedImages, attachImages: images.attach, attachSchematics: schematics.attach,
   })
-  const blocks = createBlockService({ blocks: createBlockRepository(q), transaction, storage: documentStorage, validateCategory, replaceEmbeddedImages: migrateEmbeddedImages, attachImages: images.attach })
+  const blocks = createBlockService({ blocks: createBlockRepository(q), transaction, storage: documentStorage, validateCategory, replaceEmbeddedImages: migrateEmbeddedImages, attachImages: images.attach, schematics })
   const sync = createProjectSyncService({ query: q, projects, targets: github.targets, synchronize: syncOne || (() => github.worker.tick()) })
 
   // Public endpoints must precede the session middleware, just as before.
@@ -107,6 +111,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
     res.status(ok ? 200 : 503).json({ ok })
   }))
   registerImageContentRoute(app, images, auth)
+  registerSchematicRoutes(app, schematics, auth)
   registerPublicProjectRoutes(app, projects)
   registerAuthRoutes(app, { auth, sessionSecure, loginGate: controls.login, mfaGate: controls.mfa })
   registerRegistrationRoutes(app, {

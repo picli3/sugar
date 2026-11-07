@@ -63,6 +63,7 @@ jobs:
         env:
           DATABASE_URL: postgres://designer:ci-password@127.0.0.1:5432/sugar_ai
           AUTH_IP_LIMIT: '1000'
+          AUTH_ACCOUNT_LIMIT: '100'
           AUTH_GLOBAL_LIMIT: '10000'
           AUTH_CREDENTIAL_LIMIT: '1000'
           AUTH_HASH_CONCURRENCY: '32'
