@@ -556,3 +556,10 @@ When creating or editing a library block, select a single `.kicad_sch` file up t
 `POST /api/blocks` and `PUT /api/blocks/:id` accept optional `designBlock: { name, data }` with standard base64 data. A save with this field replaces the YAML URL with the new attachment. Omit the YAML key to remove it. The file, references and block version commit together. Downloads use the existing library and project access rules. Anonymous and private share views can download files referenced by the current project revision.
 
 Run the usual database migration before starting this version. Schematic bytes count toward total storage, the account export includes schematics referenced by owned blocks and projects, and permanent deletion releases a file once no retained block or project references it.
+
+
+## Automatic block catalog (#35)
+
+Authenticated GET `/api/blocks/catalog/page?limit=100&cursor=<uuid>` uses the same visibility and 4 MiB source-byte budget as the YAML listing. Its `{items,nextCursor}` response contains names, current versions, category, image, KiCad indicator, and model, function and port search terms. Existing YAML endpoints retain their contracts. The palette fetches the current block detail on add or drop.
+
+Library and palette share an account-scoped catalog that starts loading at sign-in. Sequential pages resolve only their referenced categories, and failed pages can be retried at the same cursor. An additive migration backfills the current previews in bounded batches and keeps earlier versions intact. The preview is written with each new version in the same transaction and counts toward total storage. Older YAML that cannot be parsed remains listed by name.

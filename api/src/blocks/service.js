@@ -37,6 +37,20 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
       return page.items
     },
     page: (user, query) => loadPage(user, identifierPageInput(query)),
+    async catalogPage(user, query) {
+      const page = await blocks.catalogPage(user, identifierPageInput(query))
+      return {
+        items: page.rows.map(row => ({
+          id: row.id, name: row.name, latest_version: row.latest_version,
+          category: row.preview?.category !== undefined ? row.preview.category : row.category_slug,
+          subcategory: row.preview?.subcategory !== undefined ? row.preview.subcategory : row.subcategory_slug,
+          model: row.preview?.model || '', function: row.preview?.function || '',
+          port_terms: row.preview?.port_terms || '', image: row.preview?.image || null,
+          has_schematic: row.preview?.has_schematic === true,
+        })),
+        nextCursor: page.more ? page.rows.at(-1).id : null,
+      }
+    },
     // Lets the editor flag instances whose library block has a newer version (#33).
     async latestVersions(user, input) {
       const ids = input?.ids
@@ -58,7 +72,7 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
         await blocks.create(id, block, tx, ownerId)
         await attachImages(yaml, 'block', id, user, tx)
         const content = await attachSchematic(tx, yaml, block, id, user, upload)
-        await blocks.addVersion(id, 1, content, user.id, summary, tx)
+        await blocks.addVersion(id, 1, content, user.id, summary, tx, block)
       })
       return { id, version: 1 }
     },
@@ -107,7 +121,7 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
         const version = saved.latest_version
         await attachImages(yaml, 'block', id, user, tx)
         await attachSchematic(tx, yaml, block, id, user)
-        await blocks.addVersion(id, version, yaml, user.id, `Restaurada versión ${wanted}`, tx)
+        await blocks.addVersion(id, version, yaml, user.id, `Restaurada versión ${wanted}`, tx, block)
         return version
       })
       return { version }
@@ -126,7 +140,7 @@ export function createBlockService({ blocks, transaction, storage, validateCateg
         const version = saved.latest_version
         await attachImages(yaml, 'block', id, user, tx)
         const content = await attachSchematic(tx, yaml, block, id, user, upload)
-        await blocks.addVersion(id, version, content, user.id, summary, tx)
+        await blocks.addVersion(id, version, content, user.id, summary, tx, block)
         return version
       })
       return { version }

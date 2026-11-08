@@ -30,7 +30,7 @@ test('quota readiness fails closed on old/missing/corrupt schemas and recovers w
   await ready(false)
   // Remaining tables counted by the total storage guard (settings and quota configs already exist).
   for (const [table, columns] of Object.entries({
-    images: 'name text,mime text,data bytea', projects: 'name text,yaml text', blocks: 'name text',
+    images: 'name text,mime text,data bytea', projects: 'name text,yaml text', blocks: 'name text,catalog_preview jsonb',
     project_revisions: 'yaml text,summary text', block_versions: 'yaml text,summary text', project_settings_history: 'before jsonb,after jsonb',
     project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
     sync_jobs: 'yaml text,error text,target_repository text,target_branch text,commit_sha text,record_id uuid,github_grant_id uuid,github_owner_id uuid,github_connection_id uuid,github_installation_id text,github_repository_id text,github_allow_public boolean',

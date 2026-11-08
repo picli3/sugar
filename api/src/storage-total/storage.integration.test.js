@@ -14,7 +14,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
   const db = new pg.Pool({ connectionString: url, options: '-c search_path=' + schema }), q = (sql, args) => db.query(sql, args)
   t.after(async () => { await db.end(); await root.query('DROP SCHEMA ' + schema + ' CASCADE'); await root.end() })
   const definitions = {
-    images: 'name text,mime text,data bytea', projects: 'name text,yaml text', blocks: 'name text',
+    images: 'name text,mime text,data bytea', projects: 'name text,yaml text', blocks: 'name text,catalog_preview jsonb',
     project_revisions: 'yaml text,summary text', block_versions: 'yaml text,summary text',
     project_settings_history: 'before jsonb,after jsonb',
     project_analyses: 'snapshot jsonb,response text,focus text,model text,usage jsonb,author_id uuid',
@@ -88,6 +88,13 @@ test('total logical quota serializes writers and rolls back over-budget transact
   assert.equal(Number((await storage.configuration()).usage.documents), Number(beforeFile.documents) + Buffer.byteLength(attachment[0]) + attachment[1].length)
   await scoped('DELETE FROM schematics WHERE name=$1', [attachment[0]])
   assert.deepEqual((await storage.configuration()).usage, beforeFile)
+  await scoped('INSERT INTO blocks(name,catalog_preview) VALUES($1,$2)', ['Catalog fixture', { version: 1 }])
+  const documentsBefore = BigInt((await storage.configuration()).usage.documents)
+  await scoped("UPDATE blocks SET catalog_preview=catalog_preview||jsonb_build_object('model',repeat('X',128))")
+  const documentsAfter = (await storage.configuration()).usage.documents
+  assert.ok(BigInt(documentsAfter) > documentsBefore + 128n)
+  assert.equal(documentsAfter, (await q(usageSql)).rows[0].documents)
+  await scoped("DELETE FROM blocks WHERE name='Catalog fixture'")
   let races = await Promise.allSettled([scoped('INSERT INTO ai_calls VALUES($1,$2,$3)', ['abc','ok',actor]), scoped('INSERT INTO ai_calls VALUES($1,$2,$3)', ['def','ok',actor])])
   assert.equal(races.filter(result => result.status === 'fulfilled').length, 1)
   assert.equal(races.filter(result => result.status === 'rejected' && result.reason.code === 'PZ001').length, 1)

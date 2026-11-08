@@ -26,7 +26,7 @@ test('document quotas coordinate content writes, charge owners, retain history a
   await q("CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,yaml text,created_by uuid,visibility text DEFAULT 'private',deleted_at timestamptz,created_at timestamptz DEFAULT now(),sync_repository text,sync_branch text DEFAULT 'main',settings_version int DEFAULT 1)")
   await q('CREATE TABLE project_revisions(project_id uuid,revision int,yaml text,summary text,author_id uuid,created_at timestamptz DEFAULT now(),PRIMARY KEY(project_id,revision))')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text,PRIMARY KEY(project_id,user_id))')
-  await q('CREATE TABLE blocks(id uuid PRIMARY KEY,name text,latest_version int,category_slug text,subcategory_slug text,owner_id uuid,deleted_at timestamptz)')
+  await q('CREATE TABLE blocks(id uuid PRIMARY KEY,name text,latest_version int,category_slug text,subcategory_slug text,owner_id uuid,deleted_at timestamptz,catalog_preview jsonb)')
   await q('CREATE TABLE block_versions(block_id uuid,version int,yaml text,summary text,author_id uuid,created_at timestamptz DEFAULT now(),PRIMARY KEY(block_id,version))')
   await q("CREATE TABLE sync_jobs(id uuid PRIMARY KEY,record_id uuid,revision int,yaml text,kind text DEFAULT 'project',target_repository text,target_branch text,status text DEFAULT 'pending',error text)")
   await q('CREATE TABLE project_settings_history(id bigserial PRIMARY KEY,project_id uuid,author_id uuid,before jsonb,after jsonb,created_at timestamptz DEFAULT now())')

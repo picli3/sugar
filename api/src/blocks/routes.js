@@ -1,6 +1,7 @@
 import { asyncRoute, noStore } from '../shared/http.js'
 
 export function registerBlockRoutes(app, blocks) {
+  app.get('/api/blocks/catalog/page', noStore, asyncRoute(async (req, res) => res.json(await blocks.catalogPage(req.user, req.query))))
   app.get('/api/blocks/page', noStore, asyncRoute(async (req, res) => res.json(await blocks.page(req.user, req.query))))
   app.get('/api/blocks', noStore, asyncRoute(async (req, res) => res.json(await blocks.list(req.user))))
   app.post('/api/blocks', asyncRoute(async (req, res) => res.status(201).json(await blocks.create(req.user, req.body))))

@@ -8,7 +8,7 @@ export const usageSql = `SELECT
   (SELECT COALESCE(sum(octet_length(data)::bigint+octet_length(name)+octet_length(mime)),0) FROM images) AS images,
   (SELECT COALESCE(sum(bytes),0) FROM (
     SELECT octet_length(yaml)::bigint+octet_length(name) AS bytes FROM projects
-    UNION ALL SELECT octet_length(name) FROM blocks
+    UNION ALL SELECT octet_length(name)::bigint+COALESCE(octet_length(catalog_preview::text),0) FROM blocks
     UNION ALL SELECT octet_length(data)::bigint+octet_length(name) FROM schematics
     UNION ALL SELECT 96::bigint FROM schematic_references
     UNION ALL SELECT octet_length(yaml)::bigint+octet_length(summary) FROM project_revisions
@@ -38,7 +38,7 @@ const textBytes = field => `COALESCE(octet_length(value->>'${field}'),0)::bigint
 const jsonBytes = field => `CASE WHEN value->'${field}' IS NULL OR value->'${field}'='null'::jsonb THEN 0 ELSE octet_length((value->'${field}')::text)::bigint END`
 const sizes = {
   schematic_references: ['96'],
-  projects: ['yaml','name'].map(textBytes), blocks: [textBytes('name')],
+  projects: ['yaml','name'].map(textBytes), blocks: [textBytes('name'), jsonBytes('catalog_preview')],
   project_revisions: ['yaml','summary'].map(textBytes), block_versions: ['yaml','summary'].map(textBytes),
   project_settings_history: ['before','after'].map(jsonBytes),
   project_analyses: [...['snapshot','usage'].map(jsonBytes), ...['response','focus','model'].map(textBytes)],

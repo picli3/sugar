@@ -1,3 +1,4 @@
+import { catalogPreview } from './catalog.js'
 import { personColumns, personTextFields } from '../shared/identity.js'
 import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
 import { libraryPageBytes } from './pagination.js'
@@ -27,6 +28,19 @@ export function createBlockRepository(query) {
       UNION ALL SELECT c.id,NULL,NULL,NULL,NULL,NULL,false,true FROM prefix c CROSS JOIN budget b WHERE b.accepted=0 AND c.n=1
       ORDER BY ${nameOrder ? 'name,id' : 'id'}`, args)).rows
     },
+    async catalogPage(user, { limit, after }) {
+      const args = [limit + 1], boundary = after ? 'AND b.id>$2::uuid' : ''
+      if (after) args.push(after)
+      const owner = user.role === 'Admin' ? null : '$' + args.push(user.id)
+      const branch = access => `(SELECT b.id,b.name,b.latest_version,b.owner_id,b.category_slug,b.subcategory_slug,
+          CASE WHEN b.catalog_preview->>'version'=b.latest_version::text THEN b.catalog_preview END AS preview
+        FROM blocks b WHERE b.deleted_at IS NULL ${access} ${boundary}
+          AND EXISTS(SELECT 1 FROM block_versions v WHERE v.block_id=b.id AND v.version=b.latest_version)
+        ORDER BY b.id LIMIT $1)`
+      const candidates = owner ? branch(`AND b.owner_id=${owner}::uuid`) + ' UNION ALL ' + branch('AND b.owner_id IS NULL') : branch('')
+      return boundedMetadataPage(query, `SELECT * FROM (${candidates}) c ORDER BY id LIMIT $1`, args,
+        { order: 'id', textFields: ['name','category_slug','subcategory_slug','preview'], limit })
+    },
     async current(id) {
       return (await query(`SELECT b.id,b.name,b.latest_version,b.owner_id,v.yaml,v.created_at
         FROM blocks b JOIN block_versions v ON v.block_id=b.id AND v.version=b.latest_version
@@ -43,8 +57,9 @@ export function createBlockRepository(query) {
     async create(id, block, tx, ownerId) {
       await tx('INSERT INTO blocks(id,name,latest_version,category_slug,subcategory_slug,owner_id) VALUES($1,$2,1,$3,$4,$5)', [id, block.name, block.category, block.subcategory || null, ownerId])
     },
-    async addVersion(id, version, yaml, authorId, summary, tx) {
+    async addVersion(id, version, yaml, authorId, summary, tx, block) {
       await tx('INSERT INTO block_versions(block_id,version,yaml,author_id,summary) VALUES($1,$2,$3,$4,$5)', [id, version, yaml, authorId, summary])
+      await tx('UPDATE blocks SET catalog_preview=$2 WHERE id=$1', [id, catalogPreview(block, version)])
     },
     async versions(id) {
       return boundedLegacyList(query, `SELECT v.version,v.summary,v.created_at,${personColumns('u', 'v.author_id', 'author')} FROM block_versions v LEFT JOIN users u ON u.id=v.author_id WHERE block_id=$1 ORDER BY version DESC`, [id], { order: 'r.version DESC', textFields: ['summary',...personTextFields('author')] })

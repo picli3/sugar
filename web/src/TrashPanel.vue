@@ -7,7 +7,7 @@ import { messages } from './i18n'
 type Kind = 'project' | 'block' | 'image'
 type Item = { kind: Kind; id: string; name: string; scope: string | null; owner: string | null; deleted_at: string; purgeable: boolean; purge_after: string; retentionDays: number }
 const props = defineProps<{ language: 'es' | 'en'; admin: boolean }>()
-const emit = defineEmits<{ changed: [] }>()
+const emit = defineEmits<{ changed: [kind: Kind] }>()
 const items = ref<Item[]>([]), cursor = ref<string | null>(null), busy = ref(false), error = ref(''), notice = ref('')
 const confirming = ref<string | null>(null), confirmText = ref('')
 const t = (key: string, values: Record<string, string | number> = {}) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, String(value)), (messages[props.language] as Record<string, string>)[key] || key)
@@ -42,7 +42,7 @@ async function act(item: Item, action: 'restore' | 'purge') {
     items.value = items.value.filter(entry => entry.id !== item.id)
     confirming.value = null; confirmText.value = ''
     notice.value = t(action === 'restore' ? 'trashRestored' : 'trashPurged', { name: item.name })
-    emit('changed')
+    emit('changed', item.kind)
   } catch (e) { error.value = e instanceof Error ? e.message : t('trashFailed') }
   finally { busy.value = false }
 }
