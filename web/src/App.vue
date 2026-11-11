@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { usePagedList } from './pagination'
+import { StarIcon } from '@heroicons/vue/24/outline'
 import { useBlockCatalog } from './blockCatalogLoader'
 import { useCategoryContext } from './categoryContext'
 import CategoryPagesControl from './CategoryPagesControl.vue'
@@ -58,7 +59,7 @@ import BlockCatalogStatus from './BlockCatalogStatus.vue'
 import { headerStyle, safeHexColor } from './blockAppearance'
 import { isBidirectionalEdge as bothPortsBidirectional } from './edgeDirection'
 import { messages } from './i18n'
-import type { Block, CatalogBlockItem, Category, Diagram, DiagramNode, LibraryItem, ProjectItem, Revision, User } from './types'
+import type { Block, CatalogBlockItem, Category, Diagram, DiagramNode, LibraryItem, ProjectItem, ProjectListItem, Revision, User } from './types'
 
 const user = ref<User | null>(null)
 const githubCallback = ref(takeGithubCallback(window.location, window.history))
@@ -81,7 +82,7 @@ window.addEventListener('popstate', () => { privacyOpen.value = new URLSearchPar
 const publicLanguage = ref<'es' | 'en'>('es'), registrationEnabled = ref(false), registrationOpen = ref(false)
 const verificationToken = ref(takeVerificationToken(window.location, window.history))
 const accountAction = ref(takeAccountAction(window.location, window.history)), recoveryOpen = ref(false), recoveryEnabled = ref(false)
-const projectPages = usePagedList<ProjectItem>(path => api(path), '/projects/page', item => item.id)
+const projectPages = usePagedList<ProjectListItem>(path => api(path), '/projects/page', item => item.id)
 const projects = projectPages.items, projectsCursor = projectPages.cursor, projectsLoading = projectPages.loading
 const blockCatalog = useBlockCatalog(
   (path, signal) => api(path, 'GET', undefined, false, signal),
@@ -258,6 +259,14 @@ async function moreProjects() {
   if (busy.value || projectsLoading.value) return
   errorMessage.value = ''; notice.value = ''
   try { await projectPages.more() } catch (e) { if (page.value === 'projects') errorMessage.value = errorText(e) }
+}
+async function toggleProjectFavorite(item: ProjectListItem) {
+  if (busy.value || projectsLoading.value) return
+  const actor = actorKey()
+  await run(async () => {
+    await api(`/projects/${item.id}/favorite`, 'PUT', { favorite: !item.favorite })
+    if (actor === actorKey()) await projectPages.refresh()
+  })
 }
 async function acceptSignIn(value: User) { user.value = value; mfaChallenge.value = undefined; loginPassword.value = ''; await loadBasics(); page.value = 'projects' }
 async function completeMfaSignIn(value: User) { await run(() => acceptSignIn(value)) }
@@ -730,7 +739,14 @@ onMounted(async () => {
         <template v-if="page === 'projects'"><header class="page-header"><div><div class="eyebrow">{{ t('workspace') }}</div><h1>{{ t('projects') }}</h1><p>{{ t('welcomeSub') }}</p></div><div class="header-actions"><button v-if="editable" class="secondary" @click="importInput?.click()"><ArrowUpTrayIcon class="ui-icon" aria-hidden="true" /> {{ t('import') }}</button><input ref="importInput" type="file" accept=".yaml,.yml,text/yaml" hidden @change="importProject(($event.target as HTMLInputElement).files?.[0])"><button v-if="projects.length" class="secondary" :aria-expanded="showGuide" @click="showGuide=!showGuide"><BookOpenIcon class="ui-icon" aria-hidden="true" /> {{ t('gettingStarted') }}</button><button v-if="editable" class="primary" @click="showNewProject=true"><PlusIcon class="ui-icon" aria-hidden="true" /> {{ t('newProject') }}</button></div></header>
           <GettingStarted v-if="!projects.length || showGuide" :language="lang" :editable="editable" :busy="busy" @create="createFromTemplate" />
           <div v-if="showNewProject" class="inline-form"><input v-model="newProjectName" :placeholder="t('name')" :aria-label="t('name')" @keyup.enter="createProject"><select v-model="newProjectTemplate" :aria-label="t('projectTemplate')"><option v-for="id in templateIds" :key="id" :value="id">{{ templateInfo(id, lang).name }}</option></select><button class="primary" @click="createProject">{{ t('create') }}</button><button class="secondary" @click="showNewProject=false">{{ t('cancel') }}</button></div>
-                    <div class="project-grid"><article v-for="p in projects" :key="p.id" class="project-card" @click="openProject(p.id)"><div class="project-icon"><FolderIcon class="ui-icon icon-card" aria-hidden="true" /></div><h2>{{ p.name }}</h2><p>{{ t('revision') }} {{ p.revision }} · {{ p.visibility === 'public' ? t('public') : t('private') }}</p><p>{{ t('creator') }}: {{ p.creator || t('sugarUser') }}</p><div class="card-bottom"><button class="link-button" @click.stop="openProjectWithSettings(p.id)"><Cog6ToothIcon class="ui-icon" aria-hidden="true" /> {{ t('projectSettings') }}</button><button v-if="admin || (accountEditable && p.created_by === user.id)" class="text-danger" @click.stop="deleteProject(p.id)"><TrashIcon class="ui-icon" aria-hidden="true" /> {{ t('moveToTrash') }}</button><span v-else><ArrowTopRightOnSquareIcon class="ui-icon" aria-hidden="true" /></span></div></article></div><div class="header-actions project-pagination"><p class="hint" role="status">{{ t('projectsLoaded').replace('{count}', String(projects.length)) }}</p><button v-if="projectsCursor" class="secondary" :disabled="busy || projectsLoading" @click="moreProjects">{{ t('loadMoreProjects') }}</button></div>
+                    <div class="project-grid"><article v-for="p in projects" :key="p.id" class="project-card" @click="openProject(p.id)"><div class="project-card-top">
+                      <div class="project-icon"><FolderIcon class="ui-icon icon-card" aria-hidden="true" /></div>
+                      <button type="button" class="project-favorite" :aria-label="t('projectFavorite') + ': ' + p.name"
+                        :aria-pressed="p.favorite" :title="t(p.favorite ? 'removeProjectFavorite' : 'addProjectFavorite')"
+                        :aria-disabled="busy || projectsLoading" @click.stop="toggleProjectFavorite(p)">
+                        <StarIcon class="ui-icon" aria-hidden="true" />
+                      </button>
+                    </div><h2>{{ p.name }}</h2><p>{{ t('revision') }} {{ p.revision }} · {{ p.visibility === 'public' ? t('public') : t('private') }}</p><p>{{ t('creator') }}: {{ p.creator || t('sugarUser') }}</p><div class="card-bottom"><button class="link-button" @click.stop="openProjectWithSettings(p.id)"><Cog6ToothIcon class="ui-icon" aria-hidden="true" /> {{ t('projectSettings') }}</button><button v-if="admin || (accountEditable && p.created_by === user.id)" class="text-danger" @click.stop="deleteProject(p.id)"><TrashIcon class="ui-icon" aria-hidden="true" /> {{ t('moveToTrash') }}</button><span v-else><ArrowTopRightOnSquareIcon class="ui-icon" aria-hidden="true" /></span></div></article></div><div class="header-actions project-pagination"><p class="hint" role="status">{{ t('projectsLoaded').replace('{count}', String(projects.length)) }}</p><button v-if="projectsCursor" class="secondary" :disabled="busy || projectsLoading" @click="moreProjects">{{ t('loadMoreProjects') }}</button></div>
         </template>
         <template v-else-if="page === 'editor' && project">
           <DraftNotices :language="lang" :draft="pendingDraft" :revision="project.revision" :conflict="saveConflict" :busy="busy" @recover="recoverDraft" @discard="discardDraft" @keep-mine="keepMineAfterConflict" @load-server="loadServerAfterConflict" @download-mine="downloadMineAfterConflict" />

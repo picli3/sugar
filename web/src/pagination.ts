@@ -5,8 +5,11 @@ export function usePagedList<T>(request: (path: string) => Promise<Page<T>>, end
   const items = shallowRef<T[]>([]), cursor = ref<string | null>(null), loading = ref(false)
   let generation = 0
   function reset() { generation++; items.value = []; cursor.value = null; loading.value = false }
-  async function load(first: boolean) {
-    if (first) reset()
+  async function load(first: boolean, retain = false) {
+    if (first) {
+      if (retain) generation++
+      else reset()
+    }
     else if (loading.value || !cursor.value) return
     const current = generation, after = first ? null : cursor.value
     loading.value = true
@@ -20,5 +23,5 @@ export function usePagedList<T>(request: (path: string) => Promise<Page<T>>, end
     } catch (e) { if (current === generation) throw e }
     finally { if (current === generation) loading.value = false }
   }
-  return { items, cursor, loading, reset, first: () => load(true), more: () => load(false) }
+  return { items, cursor, loading, reset, first: () => load(true), refresh: () => load(true, true), more: () => load(false) }
 }

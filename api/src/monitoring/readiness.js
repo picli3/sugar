@@ -3,7 +3,7 @@ import { schemaVersion } from '../database/access.js'
 import { validateImageStorage } from '../images/quotas.js'
 import { validateDocumentStorage } from '../document-storage/config.js'
 import { validateTotalStorage } from '../storage-total/config.js'
-import { totalStorageTables } from '../storage-total/migration.js'
+import { projectFavoriteStorageTrigger, totalStorageTables } from '../storage-total/migration.js'
 
 export const readinessQuery = `SELECT value,
   (SELECT value FROM settings WHERE key='github_user_schema_version')='2'::jsonb
@@ -16,7 +16,9 @@ export const readinessQuery = `SELECT value,
   (SELECT version FROM total_storage_config WHERE id=true) AS total_version,
   EXISTS(SELECT 1 FROM total_storage_usage WHERE id=true) AS total_usage_ready,
   (SELECT count(*)::int FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
-    WHERE c.relnamespace=current_schema()::regnamespace AND t.tgname LIKE 'sugar\\_total\\_storage\\_%' AND t.tgdeferrable AND t.tginitdeferred AND t.tgenabled='O') AS total_triggers,
+    WHERE c.relnamespace=current_schema()::regnamespace
+      AND (t.tgname LIKE 'sugar\\_total\\_storage\\_%' OR (c.relname='project_favorites' AND t.tgname='${projectFavoriteStorageTrigger}'))
+      AND t.tgdeferrable AND t.tginitdeferred AND t.tgenabled='O') AS total_triggers,
   EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='blocks'::regclass AND attname='catalog_preview'
     AND atttypid='jsonb'::regtype AND NOT attisdropped) AS block_catalog_ready,
   EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='ai_calls'::regclass AND attname='storage_bytes'

@@ -4,6 +4,7 @@ import crypto from 'node:crypto'
 import pg from 'pg'
 import { createProjectRepository } from '../projects/repository.js'
 import { createProjectService } from '../projects/service.js'
+import { initProjectPaginationDb } from '../projects/pagination.js'
 import { createImageRepository } from '../images/repository.js'
 import { createImageService } from '../images/service.js'
 import { createBlockRepository } from '../blocks/repository.js'
@@ -18,6 +19,7 @@ test('metadata pages pack complete legacy values and preserve microsecond and bi
   await q('CREATE TABLE users(id uuid PRIMARY KEY,display_name text,email text)')
   await q('CREATE TABLE projects(id uuid PRIMARY KEY,name text,revision int,created_at timestamptz,visibility text,created_by uuid,sync_repository text,sync_branch text,settings_version int,deleted_at timestamptz)')
   await q('CREATE TABLE project_members(project_id uuid,user_id uuid,role text)')
+  await initProjectPaginationDb(q)
   await q('CREATE TABLE images(id uuid PRIMARY KEY,name text,mime text,scope text,owner_id uuid,created_by uuid,created_at timestamptz,deleted_at timestamptz)')
   await q('CREATE TABLE project_revisions(project_id uuid,revision int,summary text,created_at timestamptz,author_id uuid)')
   await q('CREATE TABLE blocks(id uuid PRIMARY KEY,owner_id uuid,deleted_at timestamptz)')

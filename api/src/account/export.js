@@ -51,6 +51,11 @@ export function createAccountExport({ transaction, maxConcurrent = 2 }) {
         }), now)
         await zip.add('collaborations.json', json(await rows(`SELECT m.project_id,p.name,m.role,m.created_at FROM project_members m
           JOIN projects p ON p.id=m.project_id WHERE m.user_id=$1 AND p.deleted_at IS NULL ORDER BY m.created_at,m.project_id`, [user.id])), now)
+      await zip.add('project-favorites.json', json(await rows(`SELECT f.project_id FROM project_favorites f
+        JOIN projects p ON p.id=f.project_id WHERE f.user_id=$1 AND p.deleted_at IS NULL
+          AND (p.created_by=$1 OR p.visibility='public' OR $2='Admin' OR EXISTS(
+            SELECT 1 FROM project_members m WHERE m.project_id=p.id AND m.user_id=$1))
+        ORDER BY p.created_at,p.id`, [user.id, account.role])), now)
         await zip.add('categories.json', json(await rows(`SELECT id,slug,name,parent_id,icon,deleted_at AS trashed_at FROM block_categories
           WHERE owner_id=$1 ORDER BY parent_id NULLS FIRST,name_key,id`, [user.id])), now)
         const author = alias => `${alias}.author_id,u.display_name AS author_name,u.email AS author_email`

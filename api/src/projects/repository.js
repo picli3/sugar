@@ -16,27 +16,46 @@ export function createProjectRepository(query) {
     async list(user) {
       return boundedLegacyList(query, `SELECT p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,${personColumns('u', 'p.created_by', 'creator')} ${join} LEFT JOIN project_members m ON m.project_id=p.id AND m.user_id=$1 WHERE p.deleted_at IS NULL AND (p.visibility='public' OR p.created_by=$1 OR $2='Admin' OR m.user_id IS NOT NULL) ORDER BY p.name,p.id`, [user.id, user.role], { order: 'r.name,r.id', textFields: ['name','visibility','sync_repository','sync_branch',...personTextFields('creator')] })
     },
-    async access(id, userId) {
-      return (await query(`SELECT p.id,p.created_by,p.visibility,m.role AS member_role FROM projects p
+    async access(id, userId, execute = query, lock = false) {
+      if (lock) await execute('SELECT id FROM projects WHERE id=$1 AND deleted_at IS NULL FOR SHARE', [id])
+      return (await execute(`SELECT p.id,p.created_by,p.visibility,m.role AS member_role FROM projects p
         LEFT JOIN project_members m ON m.project_id=p.id AND m.user_id=$2 WHERE p.id=$1 AND p.deleted_at IS NULL`, [id, userId])).rows[0]
+    },
+    async setFavorite(id, userId, favorite, tx) {
+      if (favorite) await tx('INSERT INTO project_favorites(user_id,project_id) VALUES($2,$1) ON CONFLICT DO NOTHING', [id, userId])
+      else await tx('DELETE FROM project_favorites WHERE project_id=$1 AND user_id=$2', [id, userId])
     },
     async page(user, { limit, after }) {
       const values = [], bind = value => { values.push(value); return '$' + values.length }
-      const boundary = after ? `AND (p.created_at,p.id)<(${bind(after.at)}::timestamptz,${bind(after.id)}::uuid)` : ''
+      const owner = bind(user.id) + '::uuid'
+      const position = after ? `(${bind(after.at)}::timestamptz,${bind(after.id)}::uuid)` : ''
+      const boundary = after && !after.favorite ? `AND (p.created_at,p.id)<${position}` : ''
       const cap = bind(limit + 1)
-      const branch = (filter, membership = '') => `(SELECT p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version
-        FROM projects p ${membership} WHERE p.deleted_at IS NULL ${filter} ${boundary} ORDER BY p.created_at DESC,p.id DESC LIMIT ${cap})`
-      let candidates
-      if (user.role === 'Admin') candidates = branch('')
-      else {
-        const owner = bind(user.id) + '::uuid'
-        candidates = branch(`AND p.created_by=${owner}`) + ' UNION ALL ' +
-          branch(`AND p.visibility='public' AND p.created_by IS DISTINCT FROM ${owner}`) + ' UNION ALL ' +
-          branch(`AND p.visibility<>'public' AND p.created_by IS DISTINCT FROM ${owner}`, `JOIN project_members m ON m.project_id=p.id AND m.user_id=${owner}`)
+      const columns = 'p.id,p.name,p.revision,p.created_at,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version'
+      const normal = (filter, membership = '') => `(SELECT ${columns},false AS favorite
+        FROM projects p ${membership} WHERE p.deleted_at IS NULL ${filter} ${boundary}
+        AND NOT EXISTS(SELECT 1 FROM project_favorites f WHERE f.user_id=${owner} AND f.project_id=p.id)
+        ORDER BY p.created_at DESC,p.id DESC LIMIT ${cap})`
+      const candidates = []
+      if (!after || after.favorite) {
+        const access = user.role === 'Admin' ? '' : `AND (p.created_by=${owner} OR p.visibility='public' OR EXISTS(
+          SELECT 1 FROM project_members m WHERE m.project_id=p.id AND m.user_id=${owner}))`
+        candidates.push(`(SELECT ${columns},true AS favorite FROM project_favorites f JOIN projects p ON p.id=f.project_id
+          WHERE f.user_id=${owner} AND p.deleted_at IS NULL ${access} ${after ? `AND (p.created_at,p.id)>${position}` : ''}
+          ORDER BY p.created_at,p.id LIMIT ${cap})`)
       }
+      if (user.role === 'Admin') candidates.push(normal(''))
+      else {
+        candidates.push(normal(`AND p.created_by=${owner}`),
+          normal(`AND p.visibility='public' AND p.created_by IS DISTINCT FROM ${owner}`),
+          normal(`AND p.visibility<>'public' AND p.created_by IS DISTINCT FROM ${owner}`, `JOIN project_members m ON m.project_id=p.id AND m.user_id=${owner}`))
+      }
+      const order = alias => `${alias}.favorite DESC,
+        CASE WHEN ${alias}.favorite THEN ${alias}.created_at END, CASE WHEN ${alias}.favorite THEN ${alias}.id END,
+        ${alias}.created_at DESC,${alias}.id DESC`
       return boundedMetadataPage(query, `SELECT p.*,${personColumns('u', 'p.created_by', 'creator')},
         to_char(p.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time
-        FROM (${candidates}) p LEFT JOIN users u ON u.id=p.created_by ORDER BY p.created_at DESC,p.id DESC LIMIT ${cap}`, values, { order: 'r.created_at DESC,r.id DESC', textFields: ['name', 'visibility', 'sync_repository', 'sync_branch', ...personTextFields('creator')], limit })
+        FROM (${candidates.join(' UNION ALL ')}) p LEFT JOIN users u ON u.id=p.created_by ORDER BY ${order('p')} LIMIT ${cap}`, values, { order: order('r'), textFields: ['name', 'visibility', 'sync_repository', 'sync_branch', ...personTextFields('creator')], limit })
     },
     async members(id) {
       return boundedLegacyList(query, 'SELECT m.user_id,u.email,m.role,u.active FROM project_members m JOIN users u ON u.id=m.user_id WHERE m.project_id=$1 ORDER BY u.email,m.user_id', [id], { order: 'r.email,r.user_id', textFields: ['email','role'] })
