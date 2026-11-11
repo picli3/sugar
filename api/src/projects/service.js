@@ -5,7 +5,8 @@ import { error, requiredText } from '../shared/http.js'
 import { requireEdit, requireProjectAccess, projectPermissions } from '../auth/policies.js'
 import { normalizeColorLiterals, stringify, validateProject, revisionSummary } from '../model.js'
 import { repositorySettings } from './validation.js'
-import { pageInput, pageResult, revisionPageInput, revisionPageResult, bigintPageInput, identifierPageInput, identifierPageResult } from '../shared/pagination.js'
+import { revisionPageInput, revisionPageResult, bigintPageInput, identifierPageInput, identifierPageResult } from '../shared/pagination.js'
+import { projectPageInput, projectPageResult } from './pagination.js'
 
 export function createProjectService({ projects, transaction, storage, enqueue, categoryIcons, replaceEmbeddedImages, attachImages = async () => {}, attachSchematics = async () => {}, syncTargets }) {
   const get = async (id, user, options, tx, lock = false) => {
@@ -28,9 +29,18 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
     },
     list: async user => people(await projects.list(user), user, 'creator'),
     async page(user, query) {
-      const input = pageInput(query)
+      const input = projectPageInput(query)
       const page = await projects.page(user, input)
-      return pageResult(page.rows, input.limit, item => person(item, user, 'creator'), page.more)
+      return projectPageResult(page.rows, input.limit, item => person(item, user, 'creator'), page.more)
+    },
+    async setFavorite(id, user, input) {
+      const favorite = input?.favorite
+      if (typeof favorite !== 'boolean') error(400, 'Favorito inválido / Invalid favorite')
+      await transaction(async tx => {
+        requireProjectAccess(await projects.access(id, user.id, tx, true), user)
+        await projects.setFavorite(id, user.id, favorite, tx)
+      })
+      return { favorite }
     },
     async public(id) {
       const project = await projects.public(id)

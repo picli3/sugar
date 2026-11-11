@@ -25,6 +25,7 @@ export const usageSql = `SELECT
     +(SELECT COALESCE(sum(octet_length(value::text)),0) FROM document_storage_config)
     +(SELECT COALESCE(sum(octet_length(email)::bigint+octet_length(password_hash)+octet_length(role)+COALESCE(octet_length(display_name),0)),0) FROM users)
     +(SELECT COALESCE(sum(octet_length(project_id::text)::bigint+octet_length(user_id::text)+octet_length(role)),0) FROM project_members)
+    +(SELECT count(*)*72::bigint FROM project_favorites)
     +(SELECT COALESCE(sum(octet_length(id::text)::bigint+octet_length(user_id::text)),0) FROM user_sessions)
     +(SELECT COALESCE(sum(octet_length(image_id::text)::bigint+octet_length(resource_kind)+octet_length(resource_id::text)),0) FROM image_references)
     +(SELECT COALESCE(sum(octet_length(email)::bigint+octet_length(token_hash)+octet_length(language)),0) FROM pending_registrations)
@@ -51,6 +52,7 @@ const sizes = {
   ai_quota_config: [jsonBytes('value')], image_storage_config: [jsonBytes('value')],
   document_storage_config: [jsonBytes('value')], users: ['email','password_hash','role','display_name'].map(textBytes),
   project_members: ['project_id','user_id','role'].map(textBytes), user_sessions: ['id','user_id'].map(textBytes),
+  project_favorites: ['72'],
   image_references: ['image_id','resource_kind','resource_id'].map(textBytes),
   pending_registrations: ['email','token_hash','language'].map(textBytes),
   account_actions: ['kind','email','token_hash','old_token_hash','old_email','user_id','language'].map(textBytes),
@@ -59,6 +61,9 @@ const sizes = {
 }
 const sizeCases = Object.entries(sizes).map(([table, fields]) => `WHEN '${table}' THEN ${fields.join('+')}`).join('\n      ')
 export const totalStorageTables = ['images', 'schematics', ...Object.keys(sizes)]
+// The preceding release counts the original trigger prefix exactly in readiness.
+// Keep this trigger outside that prefix so image rollback works after migration.
+export const projectFavoriteStorageTrigger = 'sugar_project_favorites_quota'
 // Counted but never rejected: sign-in and account recovery must keep working while
 // storage is full, and settled analyses were already admitted by their AI reservation.
 const unenforced = ['user_sessions','account_actions','project_analyses','mfa_credentials']
@@ -146,8 +151,9 @@ export async function initTotalStorage(q, transaction) {
       RETURN NULL;
     END $function$`)
     for (const table of totalStorageTables) {
-      await tx(`DROP TRIGGER IF EXISTS sugar_total_storage_${table} ON ${table}`)
-      await tx(`CREATE CONSTRAINT TRIGGER sugar_total_storage_${table} AFTER INSERT OR UPDATE OR DELETE ON ${table}
+      const trigger = table === 'project_favorites' ? projectFavoriteStorageTrigger : `sugar_total_storage_${table}`
+      await tx(`DROP TRIGGER IF EXISTS ${trigger} ON ${table}`)
+      await tx(`CREATE CONSTRAINT TRIGGER ${trigger} AFTER INSERT OR UPDATE OR DELETE ON ${table}
         DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION sugar_enforce_total_storage()`)
     }
   })

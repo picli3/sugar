@@ -24,6 +24,7 @@ test('total logical quota serializes writers and rolls back over-budget transact
     settings: 'key text,value jsonb', ai_quota_config: 'value jsonb', image_storage_config: 'value jsonb',
     document_storage_config: 'value jsonb', users: 'email text,password_hash text,role text,display_name text',
     project_members: 'project_id uuid,user_id uuid,role text', user_sessions: 'id uuid,user_id uuid',
+    project_favorites: 'project_id uuid,user_id uuid',
     image_references: 'image_id uuid,resource_kind text,resource_id uuid',
     schematics: 'name text,data bytea', schematic_references: 'schematic_id uuid,resource_kind text,resource_id uuid,current boolean',
     pending_registrations: 'email text,token_hash text,language text',
@@ -103,6 +104,12 @@ test('total logical quota serializes writers and rolls back over-budget transact
   await scoped('INSERT INTO project_members VALUES($1,$2,$3)', member)
   assert.ok(BigInt((await storage.configuration()).usage.config) > BigInt(beforeMember))
   await scoped('DELETE FROM project_members WHERE project_id=$1 AND user_id=$2', member.slice(0,2))
+  assert.equal((await storage.configuration()).usage.config, beforeMember)
+  await scoped('INSERT INTO project_favorites VALUES($1,$2)', member.slice(0,2))
+  const withFavorite = (await storage.configuration()).usage.config
+  assert.equal(BigInt(withFavorite), BigInt(beforeMember) + 72n)
+  assert.equal(withFavorite, (await q(usageSql)).rows[0].config)
+  await scoped('DELETE FROM project_favorites WHERE project_id=$1 AND user_id=$2', member.slice(0,2))
   assert.equal((await storage.configuration()).usage.config, beforeMember)
   // AI reservations are admitted before provider calls; settling an analysis never fails.
   await configure({ userAiBytes: 1_000 })

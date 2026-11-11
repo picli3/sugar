@@ -34,6 +34,8 @@ test('account export contains only the requester data, full history and no secre
   assert.equal((await req(`/projects/${projectId}/share`, owner.cookie, 'POST')).status, 200)
   const foreignId = (await req('/projects', helper.cookie, 'POST', { name: 'Ajeno ' + suffix })).body.id
   assert.equal((await req(`/projects/${foreignId}/members`, helper.cookie, 'PUT', { email: owner.email, role: 'reader' })).status, 200)
+  assert.equal((await req(`/projects/${foreignId}/favorite`, owner.cookie, 'PUT', { favorite: true })).status, 200)
+  assert.equal((await req(`/projects/${projectId}/favorite`, helper.cookie, 'PUT', { favorite: true })).status, 200)
   const trashed = (await req('/images', owner.cookie, 'POST', { name: 'Trashed pixel', mime: 'image/png', data: png })).body
   assert.equal((await req('/images/' + trashed.id, owner.cookie, 'DELETE')).status, 200)
 
@@ -51,6 +53,7 @@ test('account export contains only the requester data, full history and no secre
   assert.equal(JSON.parse(text('account.json')).account.email, owner.email)
   assert.equal(names.some(name => name.includes(foreignId)), false)
   assert.deepEqual(JSON.parse(text('collaborations.json')).map(item => item.project_id), [foreignId])
+  assert.deepEqual(JSON.parse(text('project-favorites.json')), [{ project_id: foreignId }])
   assert.equal(JSON.parse(text(`projects/${projectId}/revisions.json`))[1].author, 'Colaboradora')
   assert.equal(JSON.parse(text('images/images.json')).find(item => item.id === trashed.id).trashed_at !== null, true)
   assert.deepEqual(entries.get(`images/${image.id}.png`).subarray(0, 4), Buffer.from([0x89, 0x50, 0x4e, 0x47]))

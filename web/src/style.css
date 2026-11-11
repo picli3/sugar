@@ -117,6 +117,10 @@
 
 /* Project settings and read-only sharing */
 .project-card>p+p{margin-top:7px}
+.project-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.project-favorite{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:8px;background:transparent;color:var(--muted)}
+.project-favorite:hover,.project-favorite[aria-pressed=true]{color:var(--accent);background:var(--accent-deep)}
+.project-favorite[aria-pressed=true] svg{fill:currentColor}
 .project-settings-panel select,.project-settings-panel input{width:100%}
 .project-settings-panel .detail-line strong{max-width:65%;text-align:right;overflow-wrap:anywhere}
 .project-settings-panel .hint{margin:8px 0 16px}

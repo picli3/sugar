@@ -5,6 +5,7 @@ import pg from 'pg'
 import { createProjectRepository } from './repository.js'
 import { createProjectService } from './service.js'
 import { initProjectPaginationDb } from './pagination.js'
+import { createTransaction } from '../db.js'
 const url = process.env.API_TEST_DATABASE_URL
 test('project pages preserve owner/public/member/Admin boundaries with disjoint candidates and stable cursors', { skip: !url }, async t => {
   const schema = 'projects_page_' + crypto.randomBytes(8).toString('hex'), admin = new pg.Pool({ connectionString: url })
@@ -24,7 +25,7 @@ test('project pages preserve owner/public/member/Admin boundaries with disjoint 
       [id, 'Fixture ' + i, i < 3 ? 0 : i, [1,5,7,8].includes(i) ? 'public' : 'private', i < 3 ? a.id : i < 8 ? b.id : null, i === 7 ? new Date() : null])
     if ([2,3,4,5,9].includes(i)) await q('INSERT INTO project_members VALUES($1,$2,$3)', [id,a.id,i % 2 ? 'reader' : 'editor'])
   }
-  const service = createProjectService({ projects: createProjectRepository(q) }), seen = []
+  const service = createProjectService({ projects: createProjectRepository(q), transaction: createTransaction(pool) }), seen = []
   let cursor
   do {
     const page = await service.page(a, { limit: '2', ...(cursor ? { cursor } : {}) })
@@ -40,9 +41,34 @@ test('project pages preserve owner/public/member/Admin boundaries with disjoint 
   const adminPage = await service.page({ ...a, role: 'Admin' }, { limit: '100' }); assert.equal(adminPage.items.length, 9)
   const foreign = (await service.page({ ...b, role: 'Admin' }, { limit: '1' })).nextCursor
   assert.ok((await service.page(a, { cursor: foreign })).items.every(p => expected.includes(p.id)))
+
+  // Mark out of creation order, including a public project and a private collaboration.
+  for (const i of [8, 3, 1, 0, 8]) assert.deepEqual(await service.setFavorite(ids[i], a, { favorite: true }), { favorite: true })
+  await assert.rejects(service.setFavorite(ids[0], b, { favorite: true }), { status: 403 })
+  await assert.rejects(service.setFavorite(ids[7], a, { favorite: true }), { status: 404 })
+  await assert.rejects(service.setFavorite(ids[8], b, { favorite: 'true' }), { status: 400 })
+  assert.ok((await service.page(b, {})).items.every(p => p.favorite === false))
+  await service.setFavorite(ids[5], b, { favorite: true })
+  assert.deepEqual((await service.page(b, {})).items.filter(p => p.favorite).map(p => p.id), [ids[5]])
+  const ranked = []
+  cursor = null
+  do {
+    const page = await service.page(a, { limit: '1', ...(cursor ? { cursor } : {}) })
+    ranked.push(...page.items)
+    cursor = page.nextCursor
+  } while (cursor)
+  assert.deepEqual(ranked.map(p => p.id), [...[ids[0], ids[1]].sort(), ids[3], ids[8], ids[9], ids[5], ids[4], ids[2]])
+  assert.deepEqual(ranked.map(p => p.favorite), [true, true, true, true, false, false, false, false])
+  assert.ok(ranked.every(p => p.revision === 1))
+  await service.setFavorite(ids[8], a, { favorite: false })
+  await service.setFavorite(ids[8], a, { favorite: false })
+  assert.equal((await service.page(a, {})).items.find(p => p.id === ids[8]).favorite, false)
+
   await q('DELETE FROM project_members WHERE project_id=$1 AND user_id=$2', [ids[3],a.id])
   assert.equal((await service.page({ ...a, role: 'view' }, { limit: '100' })).items.some(p => p.id === ids[3]), false)
   await q('UPDATE projects SET deleted_at=now() WHERE id=$1', [ids[0]])
   assert.equal((await service.page(a, { limit: '100' })).items.length, 6)
   assert.equal((await service.page(b, { limit: '100' })).items.some(p => [ids[0],ids[2],ids[9]].includes(p.id)), false)
+  await q('DELETE FROM projects WHERE id=$1', [ids[0]])
+  assert.equal((await q('SELECT 1 FROM project_favorites WHERE project_id=$1', [ids[0]])).rowCount, 0)
 })

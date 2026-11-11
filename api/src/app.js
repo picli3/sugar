@@ -78,6 +78,7 @@ export function createApp({ q, transaction, secret, enqueue, syncOne, callProvid
   app.use('/api', securityAudit({ write: auditWriter }))
   app.patch('/api/projects/:id/settings', express.json({ limit: '4kb' }))
   app.post(['/api/me/github/authorize', '/api/me/github/complete', '/api/me/github/disconnect', '/api/login/mfa/recover', '/api/login/mfa', '/api/me/mfa/enroll', '/api/me/mfa/confirm', '/api/me/mfa/recovery-codes', '/api/me/mfa/disable', '/api/login', '/api/me/password', '/api/me/close', '/api/me/email', '/api/users', '/api/registration/request', '/api/registration/verify', '/api/recovery/request', '/api/recovery/reset', '/api/recovery/confirm-email'], express.json({ limit: '4kb' }))
+  app.put('/api/projects/:id/favorite', express.json({ limit: '1kb' }))
   app.put('/api/mail', express.json({ limit: '8kb' }))
   app.use(express.json({ limit: '3mb' }))
   app.use(cookieParser())
