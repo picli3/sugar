@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from create import create
+from transfer import transfer
 
 
 def run(*args, **kwargs):
@@ -23,6 +24,42 @@ class BackupTests(unittest.TestCase):
 
     def decrypt(self, archive, identity=None):
         return run('age', '-d', '-i', str(identity or self.identity), str(archive)).stdout
+
+    def transfer_to_disposable_remote(self, name, digest):
+        remote = self.root / 'destination'
+        config = self.root / 'rclone.conf'
+        if not config.exists():
+            with os.fdopen(os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as file:
+                file.write(f'[disposable]\ntype = alias\nremote = {remote}\n')
+        receipt = transfer(self.root, name, digest, config, 'disposable:sugar')
+        return remote / 'sugar' / name, receipt
+
+    def test_transfer_verifies_remote_bytes_and_keeps_existing_objects(self):
+        name = 'test.age'
+        local = self.root / name
+        record = create(self.root, name, [self.recipient], ['printf', 'synthetic payload'])
+        digest = record['sha256']
+        remote, receipt = self.transfer_to_disposable_remote(name, digest)
+        receipt_file = self.root / f'{name}.verified.json'
+        self.assertEqual(receipt, json.loads(receipt_file.read_text()))
+        self.assertEqual(receipt_file.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(receipt['bytes'], record['bytes'])
+        self.assertEqual(self.decrypt(remote), b'synthetic payload')
+        self.assertEqual(self.transfer_to_disposable_remote(name, digest)[1], receipt)
+
+        archive = local.read_bytes()
+        corrupt = archive[:-1] + bytes([archive[-1] ^ 1])
+        remote.write_bytes(corrupt)
+        receipt_file.unlink()
+        with self.assertRaisesRegex(ValueError, 'remote archive does not match'):
+            self.transfer_to_disposable_remote(name, digest)
+        self.assertEqual(remote.read_bytes(), corrupt)
+        self.assertFalse(receipt_file.exists())
+        remote.unlink()
+        local.write_bytes(corrupt)
+        with self.assertRaisesRegex(ValueError, 'recorded at creation'):
+            self.transfer_to_disposable_remote(name, digest)
+        self.assertFalse(remote.exists())
 
     def test_roundtrip_private_atomic_no_overwrite(self):
         result = create(self.root, 'test.age', [self.recipient], ['printf', 'synthetic payload'])
@@ -103,13 +140,15 @@ class BackupTests(unittest.TestCase):
         previous = dict(os.environ)
         try:
             os.environ.update(env)
-            create(self.root, 'database.age', [self.recipient],
-                   ['pg_dump', '--no-password', '-Fc', '--no-owner', '--no-acl', '-d', 'source'])
+            record = create(self.root, 'database.age', [self.recipient],
+                            ['pg_dump', '--no-password', '-Fc', '--no-owner', '--no-acl', '-d', 'source'])
         finally:
             os.environ.clear()
             os.environ.update(previous)
+        remote, _ = self.transfer_to_disposable_remote('database.age', record['sha256'])
+        (self.root / 'database.age').unlink()
         # Authenticate the entire archive BEFORE giving a consumer any plaintext.
-        plaintext = self.decrypt(self.root / 'database.age')
+        plaintext = self.decrypt(remote)
         self.assertTrue(plaintext.startswith(b'PGDMP'))
         run('createdb', '--no-password', 'restored', env=env)
         run('pg_restore', '--no-password', '--single-transaction', '--exit-on-error',

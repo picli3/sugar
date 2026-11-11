@@ -1,6 +1,8 @@
 """Monitor tests with a simulated webhook receiver; no real destinations, databases or hosts."""
 import contextlib, io, json, os, sys, tempfile, threading, unittest
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -119,6 +121,22 @@ class MonitorTest(unittest.TestCase):
         self.addCleanup(ready.close)
         # The receiver answers POST only, so a GET fails: readiness must alert, never raise.
         self.assertEqual(json.loads(self.run_monitor('--ready-url', ready.url)[1])['alerts'], [{'check': 'ready', 'severity': 'critical'}])
+
+    def test_verified_backup_age_uses_receipt_not_local_file_dates(self):
+        directory = Path(self.dir.name)
+        archive = directory / 'example.dump.age'
+        archive.write_bytes(b'0' * 2048)
+        args = ['--verified-backup-dir', str(directory), '--backup-max-age-hours', '30']
+        missing = [{'check': 'backup_verified', 'severity': 'critical'}]
+        self.assertEqual(json.loads(self.run_monitor(*args)[1])['alerts'], missing)
+        receipt = directory / (archive.name + '.verified.json')
+        data = {'name': archive.name, 'bytes': 2048}
+        for hours, expected in [(40, [{'check': 'backup_verified', 'severity': 'warning', 'value': 40.0, 'threshold': 30.0}]),
+                                (-1, missing), (1, [])]:
+            data['verified_at'] = datetime.fromtimestamp(self.clock[0] - hours * 3600, timezone.utc).isoformat()
+            receipt.write_text(json.dumps(data))
+            receipt.chmod(0o600)
+            self.assertEqual(json.loads(self.run_monitor(*args)[1])['alerts'], expected)
 
     def test_sql_is_static_apart_from_an_integer(self):
         self.assertIn('make_interval(mins => 15)', check.metrics_sql(15))

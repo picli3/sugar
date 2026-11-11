@@ -56,13 +56,14 @@ Cobertura añadida: exportación y cierre de cuenta, reapertura por Admin, resta
 | `ready` | `--ready-url` debe responder 200 `{"ok":true}` | crítico si falla |
 | `disk:N` | sistema de archivos de cada `--disk` | aviso ≥ 80 %, crítico ≥ 90 % |
 | `backup` | `.dump`/`.dump.age` más reciente en `--backup-dir` | desactivado (`--backup-max-age-hours 0`) |
+| `backup_verified` | recibo de transferencia `.dump.age.verified.json` en `--verified-backup-dir` | desactivado (`--backup-max-age-hours 0`) |
 | `sync_pending`, `sync_oldest`, `sync_failed` | `sync_jobs` | > 20 pendientes, > 60 min el más antiguo, > 0 fallidos/bloqueados en 24 h |
 | `ai_failed`, `ai_stuck` | `ai_calls` | > 3 fallidas/inciertas en 24 h, > 0 reservadas hace más de 15 min |
 | `http_errors`, `denied` | `audit_events` | > 5 errores (crítico) o > 50 rechazos en 1 h |
 | `db_size` | `pg_database_size` | desactivado (`--db-max-bytes 0`) |
 | `metrics` | el comando SQL no respondió o devolvió datos inválidos | crítico |
 
-Los backups actuales sólo se crean antes de cada despliegue, por eso la edad está desactivada por defecto; activarla cuando existan copias periódicas (#11). Las métricas SQL se obtienen con un comando que elige el operador (argv JSON, sin shell) que lee la consulta por stdin, por ejemplo `docker exec -i sugar-db-1 psql -U designer -d hardware_designer -At -v ON_ERROR_STOP=1`. La consulta es fija y sólo cuenta filas; no lee contenidos.
+Activar el control de edad cuando existan copias periódicas (#11). Para copias externas, apuntar `--verified-backup-dir` al directorio privado de recibos. Se usa la fecha registrada al verificar la transferencia. La comprobación del recibo es local y la recuperación periódica confirma que el objeto sigue disponible. Las métricas SQL se obtienen con un comando que elige el operador (argv JSON, sin shell) que lee la consulta por stdin, por ejemplo `docker exec -i sugar-db-1 psql -U designer -d hardware_designer -At -v ON_ERROR_STOP=1`. La consulta es fija y sólo cuenta filas.
 
 Salida: una línea JSON `sugar.monitor.v1` con alertas y métricas agregadas; código 0 sin alertas, 1 con alertas, 2 si el monitor no pudo notificar o guardar su estado. Nunca imprime la URL del webhook, errores SQL ni datos personales.
 

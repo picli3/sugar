@@ -9,6 +9,7 @@ personal data, SQL errors or the webhook URL. Nothing is installed: the operator
 Exit codes: 0 no alerts, 1 alerts firing, 2 the monitor itself could not run or notify.
 """
 import argparse, datetime, json, os, shutil, stat, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
+from pathlib import Path
 
 SCHEMA = 'sugar.monitor.v1'
 ALERT_SCHEMA = 'sugar.alert.v1'
@@ -36,6 +37,7 @@ def parse_args(argv):
     p.add_argument('--disk-warn', type=float, default=80.0)
     p.add_argument('--disk-crit', type=float, default=90.0)
     p.add_argument('--backup-dir', help='directory with database dumps')
+    p.add_argument('--verified-backup-dir', help='directory with receipts from backup/transfer.py')
     p.add_argument('--backup-max-age-hours', type=float, default=0, help='0 disables the age check')
     p.add_argument('--backup-min-bytes', type=int, default=1024)
     p.add_argument('--sql-command', help='JSON array argv that reads SQL on stdin and prints one line (psql -At)')
@@ -94,6 +96,39 @@ def check_backups(directory, max_age_hours, min_bytes, now=time.time):
     if not valid: return [alert('backup', 'critical')]
     age = round((now() - max(info.st_mtime for info in valid)) / 3600, 1)
     return [alert('backup', 'warning', age, max_age_hours)] if age > max_age_hours else []
+
+def check_verified_backups(directory, max_age_hours, min_bytes, now=time.time):
+    if not directory or not max_age_hours:
+        return []
+    current = now()
+    latest = None
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not entry.name.endswith('.dump.age.verified.json'):
+                    continue
+                info = entry.stat(follow_symlinks=False)
+                if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 4096:
+                    continue
+                try:
+                    data = json.loads(Path(entry.path).read_text())
+                    if (not isinstance(data, dict) or data.get('name') != entry.name.removesuffix('.verified.json')
+                            or type(data.get('bytes')) is not int or data['bytes'] < min_bytes):
+                        continue
+                    date = datetime.datetime.fromisoformat(data['verified_at'])
+                    if date.tzinfo is None:
+                        continue
+                    stamp = date.timestamp()
+                    if stamp <= current and (latest is None or stamp > latest):
+                        latest = stamp
+                except (OSError, ValueError, TypeError, KeyError, OverflowError):
+                    continue
+    except OSError:
+        return [alert('backup_verified', 'critical')]
+    if latest is None:
+        return [alert('backup_verified', 'critical')]
+    age = round((current - latest) / 3600, 1)
+    return [alert('backup_verified', 'warning', age, max_age_hours)] if age > max_age_hours else []
 
 def collect_metrics(command, sql, timeout, run=subprocess.run):
     try:
@@ -167,6 +202,7 @@ def run(argv, now=time.time, opener=urllib.request.urlopen, runner=subprocess.ru
     if args.ready_url: alerts += check_ready(args.ready_url, args.timeout, opener)
     alerts += check_disk(args.disk, args.disk_warn, args.disk_crit, usage)
     alerts += check_backups(args.backup_dir, args.backup_max_age_hours, args.backup_min_bytes, now)
+    alerts += check_verified_backups(args.verified_backup_dir, args.backup_max_age_hours, args.backup_min_bytes, now)
     metrics = None
     if args.sql_command:
         metrics = collect_metrics(args.sql_command, metrics_sql(args.ai_stuck_minutes), args.sql_timeout, runner)
