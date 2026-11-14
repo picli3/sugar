@@ -2,6 +2,19 @@ export type CollectionFilters = {
   sort: string; direction: string; name: string; createdFrom: string; createdTo: string
   modifiedFrom: string; modifiedTo: string; minBytes: string; maxBytes: string
 }
+export type CollectionSortField = 'name' | 'created' | 'modified' | 'size'
+
+export function collectionOrder(filters: CollectionFilters) {
+  return filters.sort === 'default' ? { sort: 'created', direction: 'desc' } : filters
+}
+
+export function sortCollection(filters: CollectionFilters, field: CollectionSortField): CollectionFilters {
+  const current = collectionOrder(filters)
+  const direction = current.sort === field
+    ? current.direction === 'asc' ? 'desc' : 'asc'
+    : field === 'name' ? 'asc' : 'desc'
+  return { ...filters, sort: field, direction }
+}
 
 export const emptyCollectionFilters = (): CollectionFilters => ({
   sort: 'default', direction: 'desc', name: '', createdFrom: '', createdTo: '',

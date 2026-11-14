@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { usePagedList } from './pagination'
 import CollectionControls from './CollectionControls.vue'
-import { collectionPath, collectionViewPreference, emptyCollectionFilters, formatBytes, saveCollectionView, type CollectionFilters } from './collectionView'
+import CollectionSortHeader from './CollectionSortHeader.vue'
+import { collectionPath, collectionViewPreference, emptyCollectionFilters, formatBytes, saveCollectionView, sortCollection, type CollectionFilters, type CollectionSortField } from './collectionView'
 import { StarIcon } from '@heroicons/vue/24/outline'
 import { useBlockCatalog } from './blockCatalogLoader'
 import { useCategoryContext } from './categoryContext'
@@ -276,6 +277,11 @@ async function applyCollectionFilters(kind: 'projects' | 'images', filters: Coll
   const actor = actorKey()
   try { await (kind === 'projects' ? projectPages : gallery).first() }
   catch (e) { if (actor === actorKey()) errorMessage.value = errorText(e) }
+}
+function sortCollectionBy(kind: 'projects' | 'images', field: CollectionSortField) {
+  if (busy.value || (kind === 'projects' ? projectsLoading.value : galleryLoading.value)) return
+  const filters = kind === 'projects' ? projectFilters.value : imageFilters.value
+  void applyCollectionFilters(kind, sortCollection(filters, field))
 }
 const collectionDate = (value: string) => new Date(value).toLocaleString(lang.value)
 async function toggleProjectFavorite(item: ProjectListItem) {
@@ -768,7 +774,12 @@ onMounted(async () => {
                     </div><h2>{{ p.name }}</h2><p>{{ t('revision') }} {{ p.revision }} · {{ p.visibility === 'public' ? t('public') : t('private') }}</p><p>{{ t('creator') }}: {{ p.creator || t('sugarUser') }}</p><div class="card-bottom"><button class="link-button" @click.stop="openProjectWithSettings(p.id)"><Cog6ToothIcon class="ui-icon" aria-hidden="true" /> {{ t('projectSettings') }}</button><button v-if="admin || (accountEditable && p.created_by === user.id)" class="text-danger" @click.stop="deleteProject(p.id)"><TrashIcon class="ui-icon" aria-hidden="true" /> {{ t('moveToTrash') }}</button><span v-else><ArrowTopRightOnSquareIcon class="ui-icon" aria-hidden="true" /></span></div></article></div>
           <div v-else class="collection-table-wrap projects-table"><table class="collection-table">
             <caption class="sr-only">{{ t('projects') }}</caption>
-            <thead><tr><th>{{ t('projectFavorite') }}</th><th>{{ t('name') }}</th><th>{{ t('createdAt') }}</th><th>{{ t('modifiedAt') }}</th><th>{{ t('size') }}</th><th>{{ t('actions') }}</th></tr></thead>
+            <thead><tr><th scope="col">{{ t('projectFavorite') }}</th>
+              <CollectionSortHeader field="name" :label="t('name')" :filters="projectFilters" :busy="busy || projectsLoading" @sort="sortCollectionBy('projects', $event)" />
+              <CollectionSortHeader field="created" :label="t('createdAt')" :filters="projectFilters" :busy="busy || projectsLoading" @sort="sortCollectionBy('projects', $event)" />
+              <CollectionSortHeader field="modified" :label="t('modifiedAt')" :filters="projectFilters" :busy="busy || projectsLoading" @sort="sortCollectionBy('projects', $event)" />
+              <CollectionSortHeader field="size" :label="t('size')" :filters="projectFilters" :busy="busy || projectsLoading" @sort="sortCollectionBy('projects', $event)" />
+              <th scope="col">{{ t('actions') }}</th></tr></thead>
             <tbody><tr v-for="p in projects" :key="p.id">
               <td><button type="button" class="project-favorite" :aria-label="t('projectFavorite') + ': ' + p.name" :aria-pressed="p.favorite"
                 :title="t(p.favorite ? 'removeProjectFavorite' : 'addProjectFavorite')" :aria-disabled="busy || projectsLoading" @click="toggleProjectFavorite(p)"><StarIcon class="ui-icon" aria-hidden="true" /></button></td>
@@ -828,7 +839,12 @@ onMounted(async () => {
         <template v-else-if="page==='gallery'"><header class="page-header"><div><div class="eyebrow">{{ t('imageCollection') }}</div><h1>{{ t('gallery') }}</h1><p>{{ t('galleryHint') }}</p></div><div v-if="editable" class="header-actions"><label v-if="admin">{{ t('libraryScope') }}<select v-model="imageScope"><option value="personal">{{ t('libraryPersonal') }}</option><option value="catalog">{{ t('libraryCatalog') }}</option></select></label><button class="primary" :disabled="busy" @click="galleryInput?.click()"><ArrowUpTrayIcon class="ui-icon" aria-hidden="true" /> {{ t('uploadImage') }}</button><input ref="galleryInput" type="file" accept="image/png,image/jpeg,image/webp" hidden @change="uploadGalleryImage(($event.target as HTMLInputElement).files?.[0])"></div></header><div class="gallery-content"><ImageStoragePanel :key="'image-storage:' + user.id + user.role" :language="lang" :refresh-key="galleryStorageVersion" /><p class="hint">{{ t('imageLimit') }}</p><CollectionControls :language="lang" :mode="imageView" :filters="imageFilters" :busy="busy || galleryLoading" @mode="imageView=$event" @apply="applyCollectionFilters('images', $event)" /><div v-if="!galleryImages.length && !galleryLoading" class="empty-state"><div><PhotoIcon class="ui-icon icon-empty" aria-hidden="true" /></div><h2>{{ t('collectionEmpty') }}</h2></div><div v-if="imageView === 'grid'" class="gallery-grid"><article v-for="img in galleryImages" :key="img.id" class="gallery-card"><div class="gallery-preview"><img :src="img.url" :alt="img.name"></div><div class="gallery-info"><strong :title="img.name">{{ img.name }}</strong><small>{{ img.scope === 'catalog' ? t('libraryCatalog') : t('libraryPersonal') }}</small><small>{{ img.creator || t('sugarUser') }} · {{ new Date(img.created_at).toLocaleDateString(lang) }}</small><input :value="img.url" readonly :aria-label="t('imageUrl')" @focus="($event.target as HTMLInputElement).select()"><div class="gallery-actions"><button class="secondary" @click="copyImageUrl(img.url)">{{ t('copyUrl') }}</button><button v-if="admin || (accountEditable && img.owner_id === user.id && img.scope !== 'catalog')" class="text-danger" @click="deleteGalleryImage(img.id)">{{ t('moveToTrash') }}</button></div></div></article></div>
           <div v-else class="collection-table-wrap"><table class="collection-table">
             <caption class="sr-only">{{ t('gallery') }}</caption>
-            <thead><tr><th>{{ t('collectionPreview') }}</th><th>{{ t('name') }}</th><th>{{ t('createdAt') }}</th><th>{{ t('modifiedAt') }}</th><th>{{ t('size') }}</th><th>{{ t('actions') }}</th></tr></thead>
+            <thead><tr><th scope="col">{{ t('collectionPreview') }}</th>
+              <CollectionSortHeader field="name" :label="t('name')" :filters="imageFilters" :busy="busy || galleryLoading" @sort="sortCollectionBy('images', $event)" />
+              <CollectionSortHeader field="created" :label="t('createdAt')" :filters="imageFilters" :busy="busy || galleryLoading" @sort="sortCollectionBy('images', $event)" />
+              <CollectionSortHeader field="modified" :label="t('modifiedAt')" :filters="imageFilters" :busy="busy || galleryLoading" @sort="sortCollectionBy('images', $event)" />
+              <CollectionSortHeader field="size" :label="t('size')" :filters="imageFilters" :busy="busy || galleryLoading" @sort="sortCollectionBy('images', $event)" />
+              <th scope="col">{{ t('actions') }}</th></tr></thead>
             <tbody><tr v-for="img in galleryImages" :key="img.id">
               <td><img class="collection-thumbnail" :src="img.url" :alt="img.name" loading="lazy"></td>
               <td class="collection-name">{{ img.name }}<small>{{ img.scope === 'catalog' ? t('libraryCatalog') : t('libraryPersonal') }}</small></td>
