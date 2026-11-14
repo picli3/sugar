@@ -16,6 +16,7 @@ export function createImageService(images, storage) {
   }
   return {
     content,
+    browse: (user, query) => images.browse(user, query),
     async shared(id, token) {
       const image = validId(id) && /^[A-Za-z0-9_-]{43}$/.test(token) && await images.shared(id, token)
       if (!image) error(404, 'Imagen no encontrada')

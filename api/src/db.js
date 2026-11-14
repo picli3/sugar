@@ -1,4 +1,5 @@
 import { migrateBlockCatalog } from './blocks/catalog.js'
+import { initCollectionMetadata } from './shared/collection-metadata.js'
 import { initSchematicsDb } from './schematics/repository.js'
 import { initGithubTargetsDb } from './github-link/targets.js'
 import { initGithubLinkDb } from './github-link/migration.js'
@@ -152,5 +153,6 @@ export async function initDb() {
   await initGithubTargetsDb(q)
   await initSchematicsDb(q)
   await migrateBlockCatalog(q, transaction)
+  await initCollectionMetadata(q)
   await initTotalStorage(q, transaction)
 }

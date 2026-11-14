@@ -1,5 +1,6 @@
 import { personColumns, personTextFields } from '../shared/identity.js'
 import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
+import { browseCollection } from '../shared/collection-browse.js'
 // All grants are evaluated against live project/library permissions, never URL secrecy.
 // Trashed images (deleted_at set) keep serving existing references until purged; only
 // the open catalog grant and gallery listings require an untrashed image.
@@ -12,6 +13,7 @@ const readable = `(
 )`
 export function createImageRepository(query) {
   return {
+    browse: (user, options) => browseCollection(query, 'image', user, options),
     async content(id, user, execute = query) {
       return (await execute(`SELECT i.mime,i.data FROM images i WHERE i.id=$1 AND ${readable}`, [id, user?.id || null, user?.role || null])).rows[0]
     },

@@ -21,6 +21,7 @@ export function createProjectService({ projects, transaction, storage, enqueue, 
   const write = (id, action) => storage ? storage.write('project', id, action) : transaction(action)
   return {
     get,
+    browse: (user, query) => projects.browse(user, query),
     async icons(id, user, query = {}) {
       const project = await get(id, user), base = query.baseRevision
       if (Object.keys(query).some(key => key !== 'baseRevision') || (base !== undefined && (typeof base !== 'string' || !/^[1-9]\d{0,9}$/.test(base) || Number(base) > 2147483647))) error(400, 'Revisión de contexto inválida / Invalid context revision')

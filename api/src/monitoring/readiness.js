@@ -6,6 +6,9 @@ import { validateTotalStorage } from '../storage-total/config.js'
 import { projectFavoriteStorageTrigger, totalStorageTables } from '../storage-total/migration.js'
 
 export const readinessQuery = `SELECT value,
+  (SELECT count(*)=4 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+    WHERE c.relnamespace=current_schema()::regnamespace AND c.relname IN ('projects','images')
+      AND a.attname IN ('updated_at','size_bytes') AND NOT a.attisdropped) AS collection_ready,
   (SELECT value FROM settings WHERE key='github_user_schema_version')='2'::jsonb
     AND EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='sync_jobs'::regclass AND tgname='sugar_sync_authorization' AND tgenabled='O') AS github_ready,
   (SELECT value FROM image_storage_config WHERE id=true) AS image_limits,
@@ -29,7 +32,7 @@ export const readinessQuery = `SELECT value,
   FROM settings WHERE key='schema_version'`
 export const databaseProbe = q => async () => {
   const result = await q({ text: readinessQuery, query_timeout: 1000 }), row = result.rows?.[0]
-  if (row?.value !== schemaVersion || !Number.isSafeInteger(row.image_version) || row.image_version < 1 || !Number.isSafeInteger(row.document_version) || row.document_version < 1 || !Number.isSafeInteger(row.total_version) || row.total_version < 1 || row.total_usage_ready !== true || row.total_triggers !== totalStorageTables.length || row.block_catalog_ready !== true || row.ai_storage_ready !== true || row.mfa_sessions_ready !== true || row.github_ready !== true) return false
+  if (row?.value !== schemaVersion || row.collection_ready !== true || !Number.isSafeInteger(row.image_version) || row.image_version < 1 || !Number.isSafeInteger(row.document_version) || row.document_version < 1 || !Number.isSafeInteger(row.total_version) || row.total_version < 1 || row.total_usage_ready !== true || row.total_triggers !== totalStorageTables.length || row.block_catalog_ready !== true || row.ai_storage_ready !== true || row.mfa_sessions_ready !== true || row.github_ready !== true) return false
   try { validateImageStorage(row.image_limits); validateDocumentStorage(row.document_limits); validateTotalStorage(row.total_limits); return true } catch { return false }
 }
 

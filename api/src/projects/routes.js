@@ -6,6 +6,7 @@ export function registerPublicProjectRoutes(app, projects) {
 }
 
 export function registerProjectRoutes(app, projects) {
+  app.get('/api/projects/browse', noStore, asyncRoute(async (req, res) => res.json(await projects.browse(req.user, req.query))))
   app.get('/api/projects/page', noStore, asyncRoute(async (req, res) => res.json(await projects.page(req.user, req.query))))
   app.get('/api/projects', noStore, asyncRoute(async (req, res) => res.json(await projects.list(req.user))))
   app.post('/api/projects', asyncRoute(async (req, res) => res.status(201).json(await projects.create(req.user, req.body))))
