@@ -1,11 +1,13 @@
 import { personColumns, personTextFields } from '../shared/identity.js'
 import { boundedLegacyList, boundedMetadataPage } from '../shared/legacy-list.js'
+import { browseCollection } from '../shared/collection-browse.js'
 const fields = `p.id,p.name,p.revision,p.yaml,p.visibility,p.created_by,p.sync_repository,p.sync_branch,p.settings_version,p.created_at,${personColumns('u', 'p.created_by', 'creator')}`
 const join = 'FROM projects p LEFT JOIN users u ON u.id=p.created_by'
 
 // Every write participating in a transaction receives that transaction's query function.
 export function createProjectRepository(query) {
   return {
+    browse: (user, options) => browseCollection(query, 'project', user, options),
     async find(id, userId, execute = query, lock = false) {
       // Lock first, then read membership with a fresh statement snapshot after any waiter.
       if (lock) await execute('SELECT id FROM projects WHERE id=$1 AND deleted_at IS NULL FOR UPDATE', [id])

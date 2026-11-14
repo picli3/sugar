@@ -13,6 +13,7 @@ export function registerImageContentRoute(app, images, auth) {
   app.get('/api/shared/:token/images/:id/content', noStore, asyncRoute(async (req, res) => sendImage(res, await images.shared(req.params.id, req.params.token))))
 }
 export function registerImageRoutes(app, images) {
+  app.get('/api/images/browse', noStore, asyncRoute(async (req, res) => res.json(await images.browse(req.user, req.query))))
   app.get('/api/images/page', noStore, asyncRoute(async (req, res) => res.json(await images.page(req.user, req.query))))
   app.get('/api/images', noStore, asyncRoute(async (req, res) => res.json(await images.list(req.user))))
   app.post('/api/images', asyncRoute(async (req, res) => res.status(201).json(await images.create(req.user, req.body))))

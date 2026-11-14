@@ -15,7 +15,7 @@ export function usePagedList<T>(request: (path: string) => Promise<Page<T>>, end
     loading.value = true
     try {
       const path = typeof endpoint === 'function' ? endpoint() : endpoint
-      const result = await request(path + '?limit=30' + (after ? '&cursor=' + encodeURIComponent(after) : ''))
+      const result = await request(path + (path.includes('?') ? '&' : '?') + 'limit=30' + (after ? '&cursor=' + encodeURIComponent(after) : ''))
       if (current !== generation) return
       const merged = new Map((first ? [] : items.value).map(item => [key(item), item]))
       for (const item of result.items) merged.set(key(item), item)
