@@ -32,7 +32,7 @@ async function json(response, status = 200) {
     const image = await json(await api.post(base + '/api/images', { data: { name: prefix, mime: 'image/png', data: png } }), 201)
     const diagram = {
       name: prefix, nodes: [
-        { id: 'power', position: { x: 0, y: 0 }, block: { name: 'Power supply', function: 'Power', model: 'SUPPLY', category: category.slug, color: '#004466', ports: [{ id: 'out', label: '5V', protocol: 'POWER', direction: 'out', color: '#a300ff' }], properties: { notes: '<script>window.injected=true</script>' } } },
+        { id: 'power', position: { x: 0, y: 0 }, block: { name: 'Power supply', function: 'Power', model: 'SUPPLY', category: category.slug, color: '#004466', ports: [{ id: 'out', label: '5V', protocol: 'POWER', direction: 'out', color: '#a300ff' }], properties: { notes: '<script>window.injected=true</script>', urls: [{ LCSC: 'https://example.invalid/part?part=NCP1117&source=sugar' }, { Datasheet: 'https://example.invalid/datasheet.pdf' }], voltage: '3.3 V', ratings: { current: '1 A' }, unsafe_link: 'javascript:alert(1)' } } },
         { id: 'sensor', position: { x: 1200, y: 80 }, block: { name: 'Sensor board', function: 'Read sensors', image: image.url, ports: [{ id: 'in', label: '5V', protocol: 'POWER', direction: 'in' }] } },
       ], edges: [{ id: 'wire', source: 'power', target: 'sensor', sourcePort: 'out', targetPort: 'in' }],
     }
@@ -70,6 +70,16 @@ async function json(response, status = 200) {
     await frame.getByText('Power supply', { exact: true }).click()
     await frame.locator('.embed-details').getByText('<script>window.injected=true</script>', { exact: true }).waitFor()
     assert.equal(await frame.locator('.embed-details script').count(), 0)
+    const lcsc = frame.getByRole('link', { name: 'LCSC', exact: true })
+    assert.equal(await lcsc.getAttribute('href'), 'https://example.invalid/part?part=NCP1117&source=sugar')
+    assert.equal(await lcsc.getAttribute('target'), '_blank')
+    assert.equal(await lcsc.getAttribute('rel'), 'noopener noreferrer')
+    await frame.getByRole('link', { name: 'Datasheet', exact: true }).waitFor()
+    await frame.locator('.embed-details').getByText('Enlaces', { exact: true }).waitFor()
+    await frame.locator('.embed-details').getByText('3.3 V', { exact: true }).waitFor()
+    await frame.locator('.embed-details').getByText('1 A', { exact: true }).waitFor()
+    assert.equal(await frame.locator('a[href^="javascript:"]').count(), 0)
+    assert.equal(await frame.locator('.embed-details').textContent().then(text => text.includes('https://example.invalid/')), false)
     await frame.getByRole('button', { name: 'Cerrar detalles' }).click()
     const viewport = frame.locator('.vue-flow__transformationpane')
     const initial = await viewport.getAttribute('style')

@@ -4,6 +4,7 @@ import { VueFlow, Handle, Position, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { ArrowTopRightOnSquareIcon, CpuChipIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import BlockSymbol from './BlockSymbol.vue'
+import PropertyValue from './PropertyValue.vue'
 import CanvasControls from './CanvasControls.vue'
 import RoutedEdge from './RoutedEdge.vue'
 import SchematicDownload from './SchematicDownload.vue'
@@ -141,7 +142,10 @@ onUnmounted(() => {
         <h2>{{ selected.block.name }}</h2>
         <p>{{ selected.block.function }}</p><p v-if="selected.block.model">{{ selected.block.model }}</p>
         <SchematicDownload :url="selected.block.design_block_kicad" :share-token="target?.shareToken" :language="language" />
-        <dl v-if="selected.block.properties"><template v-for="(value, key) in selected.block.properties" :key="key"><dt>{{ key }}</dt><dd>{{ value }}</dd></template></dl>
+        <section v-if="Object.keys(selected.block.properties || {}).length" class="embed-properties" :aria-label="t('blockProperties')">
+          <h3>{{ t('blockProperties') }}</h3>
+          <PropertyValue :value="selected.block.properties" :label="t('blockProperties')" :language="language" />
+        </section>
       </aside>
     </div>
   </main>
