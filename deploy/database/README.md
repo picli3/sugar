@@ -32,7 +32,7 @@ Fuentes: [GRANT PostgreSQL 17](https://www.postgresql.org/docs/17/sql-grant.html
 
 ## Imagen PostgreSQL corregida — #29
 
-`Dockerfile` es ahora la imagen DB seleccionada por ambos Compose: `sugar-database:local` mediante build local y `ghcr.io/picli3/sugar-database:<commit>` para la próxima liberación autorizada. Conserva PostgreSQL 17.11 y Alpine de la base oficial por digest; reemplaza únicamente gosu e incluye su licencia. La fuente gosu 1.20 está fijada al commit `29b939aa5bd4dc588af765b8248f6e39150d2565` y SHA-256 del archivo. Se reconstruye con Go 1.27.3 por digest y x/sys 0.44.0 exacto; Go verifica los módulos. El binario es estático, sin bits setuid/setgid; conserva el entrypoint, UID/GID y rutas del volumen originales. No se ignoran los avisos del binario anterior ni se cambia el major.
+`Dockerfile` es ahora la imagen DB seleccionada por ambos Compose: `sugar-database:local` mediante build local y `ghcr.io/picli3/sugar-database:<commit>` para la próxima liberación autorizada. Conserva PostgreSQL 17.11 y Alpine de la base oficial por digest; reemplaza únicamente gosu e incluye su licencia. La fuente gosu 1.20 está fijada al commit `29b939aa5bd4dc588af765b8248f6e39150d2565` y SHA-256 del archivo. Se reconstruye con Go 1.27.4 por digest y x/sys 0.44.0 exacto; Go verifica los módulos. El binario es estático, sin bits setuid/setgid; conserva el entrypoint, UID/GID y rutas del volumen originales. No se ignoran los avisos del binario anterior ni se cambia el major.
 
 ```sh
 docker build -t sugar-privilege-database deploy/database
