@@ -60,7 +60,7 @@ export async function browseCollection(q, kind, user, query) {
   if (input.name) conditions.push(`strpos(lower(p.name),lower(${bind(input.name)}::text))>0`)
   for (const [prefix, column] of [['created', 'created_at'], ['modified', 'updated_at']]) {
     if (input[prefix + 'From']) conditions.push(`p.${column}>=${bind(input[prefix + 'From'] + 'T00:00:00Z')}::timestamptz`)
-    if (input[prefix + 'To']) conditions.push(`p.${column}<${bind(input[prefix + 'To'] + 'T00:00:00Z')}::timestamptz+interval '1 day'`)
+    if (input[prefix + 'To']) conditions.push(`p.${column}<${bind(input[prefix + 'To'] + 'T00:00:00Z')}::timestamptz+interval '24 hours'`)
   }
   if (input.minBytes) conditions.push(`p.size_bytes>=${bind(input.minBytes)}::int`)
   if (input.maxBytes) conditions.push(`p.size_bytes<=${bind(input.maxBytes)}::int`)
