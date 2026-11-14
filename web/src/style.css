@@ -292,3 +292,20 @@ html,body,#app{height:100%;overflow:hidden}
 .node-badge.schematic { color: var(--accent); cursor: pointer; pointer-events: auto; text-decoration: none; }
 .has-custom-color .node-badge.schematic { color: inherit; }
 .catalog-schematic { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; }
+
+/* Standalone read-only iframe viewer (#41). Scroll stays inside the details panel. */
+.app-shell.embed-view { height: 100%; height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.embed-header { display: flex; align-items: center; gap: 16px; padding: 10px 14px; flex: none; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 13px; min-width: 0; }
+.embed-header a { display: flex; align-items: center; gap: 6px; color: var(--accent); text-decoration: none; flex: none; }
+.embed-header > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.embed-canvas { position: relative; flex: 1; min-height: 0; min-width: 0; }
+.embed-canvas > .vue-flow { width: 100%; height: 100%; }
+.embed-status { margin: 0; padding: 8px 14px; font-size: 12px; background: var(--surface); color: var(--muted); flex: none; }
+.embed-details { position: absolute; z-index: 10; right: 8px; top: 8px; width: min(280px, calc(100% - 16px)); max-height: calc(100% - 16px); overflow: auto; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; overflow-wrap: anywhere; }
+.embed-details > button { float: right; }
+.embed-details h2 { font-size: 16px; margin: 0 32px 12px 0; }
+.embed-details p { margin: 8px 0; }
+.embed-details dt { margin-top: 10px; font-weight: 700; }
+.embed-details dd { margin: 4px 0 0; white-space: pre-wrap; }
+.embed-code textarea { width: 100%; resize: vertical; min-height: 150px; font: 11px/1.5 ui-monospace, monospace; }
+.share-section > .secondary { margin-bottom: 8px; }

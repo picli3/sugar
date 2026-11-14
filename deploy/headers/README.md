@@ -4,7 +4,7 @@
 
 | Respuesta | Política |
 | --- | --- |
-| HTML, rutas SPA y recursos fuera de `/assets/` | `private, no-store`, CSP de interfaz, sin framing |
+| HTML, rutas SPA y recursos fuera de `/assets/` (excepto el visor incrustado) | `private, no-store`, CSP de interfaz, sin framing |
 | JS/CSS compilados con hash en `/assets/`, 200/304 | Caché pública immutable de un año; no contienen datos de cuenta/proyecto |
 | Recurso estático inexistente/error | `private, no-store`; conserva cabeceras de seguridad |
 | Toda `/api`, incluidos públicos/compartidos, imágenes, YAML, configuración, errores y límites | `private, no-store`, Pragma no-cache, Vary Cookie, no-referrer; sin ETag generado por Express |
@@ -37,3 +37,20 @@ Durante una liberación autorizada: revisar dominio/proxies, conservar la config
 Para repetir la comprobación manual, `python3 deploy/containers/smoke.py --preview` abre solo el web ficticio en loopback 8091 hasta pulsar Enter; API/DB mantienen redes internas. Esa modalidad desactiva Secure únicamente para la cookie HTTP ficticia y configura el origen local. El ensayo CI normal no publica puertos y usa la configuración Secure de producción. No usar la modalidad preview con datos reales.
 
 Fuentes: [CSP de MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy), [prevención CSRF de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html).
+
+## Diagramas incrustados — #41
+
+En un proyecto, abre **Configuración → Compartir → Incrustar HTML**. El botón copia el código y lo muestra para copiarlo manualmente si el navegador deniega el portapapeles. Pégalo en un bloque HTML de la publicación. El contenedor ocupa el ancho disponible, con proporción 16:9 y altura mínima de 320 px.
+
+- Los proyectos públicos usan `/embed/public/<uuid>`, con una URL estable. Los privados usan `/embed/shared?token=…`, sujeto a los permisos, caducidad de siete días y revocación del enlace existente. Un código privado da acceso a quien lo posea; para publicaciones permanentes se recomienda un proyecto público.
+- El visor permite zoom, desplazamiento, selección y consulta de propiedades. Consulta las revisiones guardadas cada 30 segundos mientras está visible; los cambios sin guardar no se publican. Un fallo temporal conserva el diagrama y ofrece reintento. Si el servidor revoca el acceso, el siguiente intento elimina el diagrama.
+- Solo esas rutas reciben `frame-ancestors *` y omiten X-Frame-Options. Montan un componente independiente sin sesión, editor ni administración, y consultan únicamente las API públicas/compartidas con `credentials: omit`. El resto conserva `frame-ancestors 'none'` y `X-Frame-Options: DENY`. Se evalúa `$request_uri` para conservar esta separación tras la redirección interna SPA. La API sigue sin admitir framing. El token privado permanece en la consulta, excluida de los registros HTTP existentes.
+- Si la web receptora impone su propia CSP, debe permitir el origen de Sugar en `frame-src`. El editor de publicaciones también debe admitir iframes. No se cambia ninguna política de la web receptora automáticamente.
+
+`web/tests/embed.test.mjs` comprueba las URLs, el escape de atributos HTML y las rutas permitidas. `test_web_embed.py` comprueba la configuración Nginx real, incluidos fallback SPA y rutas manipuladas. Para repetir la prueba de navegador, construye las imágenes indicadas en `deploy/containers/README.md` y ejecuta `python3 deploy/containers/smoke.py --preview`. Con Playwright y Chromium instalados en el entorno de pruebas, en otra terminal ejecuta
+
+```sh
+EMBED_TEST_URL=http://localhost:8091 node web/test-support/embed-browser.cjs
+```
+
+Se pueden indicar `PLAYWRIGHT_MODULE` y `CHROME_EXECUTABLE` si están instalados en otra ubicación. El script solo admite ese destino desechable, crea datos sintéticos y una página receptora en otro origen local. Verifica generación del código, interacción sin escrituras, imágenes e iconos, colores, móvil/escritorio, español/inglés, actualización automática, fallos temporales y revocación. Cierra el preview con Enter para eliminar sus contenedores y volúmenes.
