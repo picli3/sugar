@@ -92,4 +92,10 @@ test('project and image browsing sorts and filters the full authorized collectio
   assert.equal((await browseCollection(q, 'project', a, { name: 'Project 37' })).items.length, 0)
   await q('UPDATE images SET deleted_at=now() WHERE id=$1', [ids[35]])
   assert.equal((await browseCollection(q, 'image', a, { name: 'Image 35' })).items.length, 0)
+  // UTC day boundaries stay fixed even if PostgreSQL uses a daylight-saving zone.
+  await q("SET TIME ZONE 'America/New_York'")
+  await q("UPDATE projects SET created_at='2026-11-01T23:30:00Z' WHERE id=$1", [ids[0]])
+  await q("UPDATE projects SET created_at='2026-11-02T00:30:00Z' WHERE id=$1", [ids[1]])
+  const day = await browseCollection(q, 'project', a, { createdFrom: '2026-11-01', createdTo: '2026-11-01' })
+  assert.deepEqual(day.items.map(item => item.id), [ids[0]])
 })
